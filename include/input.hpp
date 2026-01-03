@@ -87,7 +87,7 @@ private:
             firstMouse = false;
         }
 
-        tempXOffset += static_cast<float>(xpos - lastY);
+        tempXOffset += static_cast<float>(xpos - lastX);
         tempYOffset += static_cast<float>(lastY - ypos);
 
         lastX = xpos;

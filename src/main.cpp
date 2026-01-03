@@ -2,14 +2,14 @@
 #include <GLFW/glfw3.h>
 
 #include <iostream>
-#include <vector>
 
 #include "settings.hpp"
 #include "input.hpp"
+#include "shader.hpp"
+#include "player.hpp"
+#include "chunk.hpp"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-
-float xoffset, yoffset;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -20,7 +20,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow* window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Voxels", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "Voxels", NULL, NULL);
     if (window == NULL) {
         std::cerr << "Failed to create GLFW window." << std::endl;
         glfwTerminate();
@@ -33,10 +33,14 @@ int main()
         std::cerr << "Failed to initialize GLAD." << std::endl;
         return -1;
     }
-    glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    glViewport(0, 0, screenWidth, screenHeight);
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+
+    int fbw, fbh;
+    glfwGetFramebufferSize(window, &fbw, &fbh);
+    framebuffer_size_callback(window, fbw, fbh);
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
@@ -44,6 +48,9 @@ int main()
 
 
     Input::get().init(window);
+    Shader shader("shaders/vertex.glsl", "shaders/fragment.glsl");
+    Player player({0.0f, 0.0f, 0.0f});
+    Chunk chunk;
 
     while (!glfwWindowShouldClose(window)) {
         float time = glfwGetTime();
@@ -56,9 +63,20 @@ int main()
         auto& input = Input::get();
         if (input.key(GLFW_KEY_ESCAPE)) { glfwSetWindowShouldClose(window, 1); }
 
+        player.update(input.getXOffset(), input.getYOffset(), deltaTime);
+
 
         glClearColor(0.1f, 0.3f, 0.4f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glm::mat4 projection = glm::perspective(glm::radians(50.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 1000.0f);
+        glm::mat4 view = player.getViewMatrix();
+
+        shader.use();
+        shader.setMat4("uProjection", projection);
+        shader.setMat4("uView", view);
+
+        chunk.render(&shader);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -70,4 +88,6 @@ int main()
 
 void framebuffer_size_callback(GLFWwindow*, int width, int height) {
     glViewport(0, 0, width, height);
+    screenWidth = width;
+    screenHeight = height;
 }
