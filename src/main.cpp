@@ -20,7 +20,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "Voxels", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Voxels", NULL, NULL);
     if (window == NULL) {
         std::cerr << "Failed to create GLFW window." << std::endl;
         glfwTerminate();
@@ -33,7 +33,7 @@ int main()
         std::cerr << "Failed to initialize GLAD." << std::endl;
         return -1;
     }
-    glViewport(0, 0, screenWidth, screenHeight);
+    glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);

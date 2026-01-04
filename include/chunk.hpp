@@ -30,7 +30,7 @@ private:
 
     GLuint vbo, vao;
 
-    inline int idx(int x, int y, int z) { return z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + z; }
+    inline int idx(int x, int y, int z) { return z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x; }
     inline uint32_t packVertex(int x, int y, int z)
     {
         return (uint32_t)((x & 31) | ((y & 31) << 5) | ((z & 31) << 10));

@@ -1,10 +1,34 @@
 #include "chunk.hpp"
 
+constexpr int VOXEL_FACES[] = {
+    // Left
+    0, 0, 0,
+    0, 1, 1,
+    0, 1, 0,
+
+    0, 0, 0,
+    0, 0, 1,
+    0, 1, 1,
+
+    // Right
+    1, 0, 0,
+    1, 1, 1,
+    1, 1, 0,
+
+    1, 0, 0,
+    1, 0, 1,
+    1, 1, 1
+};
+
+constexpr int ITEMS_PER_VERTEX = 3;
+constexpr int VERTICES_PER_FACE = 6;
+
 Chunk::Chunk()
 {
-    mesh.push_back(packVertex(0, 0, 0));
-    mesh.push_back(packVertex(0, 10, 0));
-    mesh.push_back(packVertex(10, 10, 0));
+    for (int i = 0; i < VERTICES_PER_FACE * 2; ++i) {
+        int base = i * ITEMS_PER_VERTEX;
+        mesh.push_back(packVertex(VOXEL_FACES[base], VOXEL_FACES[base+1], VOXEL_FACES[base+2]));
+    }
 
     glGenBuffers(1, &vbo);
     glGenVertexArrays(1, &vao);

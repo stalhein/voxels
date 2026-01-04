@@ -25,8 +25,6 @@ void Player::update(float xoffset, float yoffset, float deltaTime) {
     yaw += xoffset;
     pitch += yoffset;
 
-    std::cout << xoffset << " " << yoffset << "\n";
-
     if (pitch > 89.0f)  { pitch = 89.9f; }
     if (pitch < -89.0f) { pitch = -89.9f; }
 
