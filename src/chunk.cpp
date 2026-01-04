@@ -79,7 +79,14 @@ Chunk::Chunk(int x, int y, int z) : chunkX(x), chunkY(y), chunkZ(z)
 
 void Chunk::generateTerrain()
 {
-    blocks.fill(1);
+    blocks.fill(0);
+    for (int z = 0; z < CHUNK_SIZE; ++z) {
+        for (int y = 0; y < CHUNK_SIZE; ++y) {
+            for (int x = 0; x < CHUNK_SIZE; ++x) {
+                if (y < x)  blocks[idx(x, y, z)] = 1;
+            }
+        }
+    }
 }
 
 void Chunk::generateMesh()
@@ -87,8 +94,7 @@ void Chunk::generateMesh()
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for (int y = 0; y < CHUNK_SIZE; ++y) {
             for (int x = 0; x < CHUNK_SIZE; ++x) {
-                int index = idx(x, y, z);
-                if (blocks[index] == 0) continue;
+                if (!solidBlockAt(x, y, z)) continue;
 
                 if (!solidBlockAt(x-1, y, z)) addFace(x, y, z, 0);
                 if (!solidBlockAt(x+1, y, z)) addFace(x, y, z, 1);

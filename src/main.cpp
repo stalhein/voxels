@@ -7,7 +7,7 @@
 #include "input.hpp"
 #include "shader.hpp"
 #include "player.hpp"
-#include "chunk.hpp"
+#include "world.hpp"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
@@ -51,8 +51,7 @@ int main()
     Input::get().init(window);
     Shader shader("shaders/vertex.glsl", "shaders/fragment.glsl");
     Player player({0.0f, 0.0f, 0.0f});
-    Chunk chunk(0, 0, 0);
-    Chunk chunk2(1, 0, 0);
+    World world;
 
     while (!glfwWindowShouldClose(window)) {
         float time = glfwGetTime();
@@ -78,8 +77,7 @@ int main()
         shader.setMat4("uProjection", projection);
         shader.setMat4("uView", view);
 
-        chunk.render(&shader);
-        chunk2.render(&shader);
+        world.render(&shader);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
