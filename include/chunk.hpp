@@ -11,6 +11,7 @@
 
 #include "settings.hpp"
 #include "shader.hpp"
+#include "fastnoiselite.hpp"
 
 constexpr int CHUNK_SIZE = 16;
 constexpr int BLOCKS_IN_CHUNK = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
@@ -20,9 +21,11 @@ class Chunk
 public:
     int chunkX, chunkY, chunkZ;
 
+    bool dirty = true;
+
     Chunk(int x, int y, int z);
 
-    void generateTerrain();
+    void generateTerrain(FastNoiseLite* noise);
     void generateMesh();
     void uploadMesh();
 

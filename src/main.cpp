@@ -66,6 +66,8 @@ int main()
 
         player.update(input.getXOffset(), input.getYOffset(), deltaTime);
 
+        world.update();
+
 
         glClearColor(0.1f, 0.3f, 0.4f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

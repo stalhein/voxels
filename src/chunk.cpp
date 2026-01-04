@@ -62,9 +62,6 @@ constexpr int VERTICES_PER_FACE = 6;
 Chunk::Chunk(int x, int y, int z) : chunkX(x), chunkY(y), chunkZ(z)
 {
     model = glm::translate(glm::mat4(1.0f), glm::vec3(chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE, chunkZ * CHUNK_SIZE));
-    
-    generateTerrain();
-    generateMesh();
 
     glGenBuffers(1, &vbo);
     glGenVertexArrays(1, &vao);
@@ -73,17 +70,21 @@ Chunk::Chunk(int x, int y, int z) : chunkX(x), chunkY(y), chunkZ(z)
 
     glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT, sizeof(uint32_t), (void*)0);
     glEnableVertexAttribArray(0);
-
-    uploadMesh();
 }
 
-void Chunk::generateTerrain()
+void Chunk::generateTerrain(FastNoiseLite* noise)
 {
     blocks.fill(0);
     for (int z = 0; z < CHUNK_SIZE; ++z) {
-        for (int y = 0; y < CHUNK_SIZE; ++y) {
-            for (int x = 0; x < CHUNK_SIZE; ++x) {
-                if (y < x)  blocks[idx(x, y, z)] = 1;
+        for (int x = 0; x < CHUNK_SIZE; ++x) {
+            float noiseValue = noise->GetNoise((float)(x + chunkX * CHUNK_SIZE), (float)(z + chunkZ * CHUNK_SIZE));
+            int height = floor((noiseValue + 1) / 2 * CHUNK_SIZE * 4);
+            int localHeight = height - chunkY * CHUNK_SIZE;
+            if (localHeight < 0) localHeight = 0;
+            if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
+
+            for (int y = 0; y < localHeight; ++y) {
+                blocks[idx(x, y, z)] = 1;
             }
         }
     }
@@ -91,6 +92,7 @@ void Chunk::generateTerrain()
 
 void Chunk::generateMesh()
 {
+    mesh.clear();
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for (int y = 0; y < CHUNK_SIZE; ++y) {
             for (int x = 0; x < CHUNK_SIZE; ++x) {

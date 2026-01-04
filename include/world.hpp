@@ -8,6 +8,7 @@
 #include "settings.hpp"
 #include "shader.hpp"
 #include "chunk.hpp"
+#include "fastnoiselite.hpp"
 
 struct ChunkCoord
 {
@@ -36,7 +37,10 @@ class World
 public:
     World();
 
+    void update();
     void render(Shader* shader);
 private:
+    FastNoiseLite noise;
+
     std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>, ChunkCoordHash> chunks;
 };
