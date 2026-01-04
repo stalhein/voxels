@@ -12,12 +12,48 @@ constexpr int VOXEL_FACES[] = {
 
     // Right
     1, 0, 0,
+    1, 1, 0,
+    1, 1, 1,
+
+    1, 0, 0,
+    1, 1, 1,
+    1, 0, 1,
+
+    // Bottom
+    0, 0, 0,
+    1, 0, 0,
+    1, 0, 1,
+
+    0, 0, 0,
+    1, 0, 1,
+    0, 0, 1,
+
+    // Top
+    0, 1, 0,
     1, 1, 1,
     1, 1, 0,
 
+    0, 1, 0,
+    0, 1, 1,
+    1, 1, 1,
+
+    // Back
+    0, 0, 0,
+    1, 1, 0,
     1, 0, 0,
+
+    0, 0, 0,
+    0, 1, 0,
+    1, 1, 0,
+
+    // Front
+    0, 0, 1,
     1, 0, 1,
-    1, 1, 1
+    1, 1, 1,
+
+    0, 0, 1,
+    1, 1, 1,
+    0, 1, 1
 };
 
 constexpr int ITEMS_PER_VERTEX = 3;
@@ -25,9 +61,10 @@ constexpr int VERTICES_PER_FACE = 6;
 
 Chunk::Chunk()
 {
-    for (int i = 0; i < VERTICES_PER_FACE * 2; ++i) {
+    for (int i = 0; i < VERTICES_PER_FACE * 6; ++i) {
         int base = i * ITEMS_PER_VERTEX;
-        mesh.push_back(packVertex(VOXEL_FACES[base], VOXEL_FACES[base+1], VOXEL_FACES[base+2]));
+        int normalIndex = floor(i / VERTICES_PER_FACE);
+        mesh.push_back(packVertex(VOXEL_FACES[base], VOXEL_FACES[base+1], VOXEL_FACES[base+2], normalIndex));
     }
 
     glGenBuffers(1, &vbo);
