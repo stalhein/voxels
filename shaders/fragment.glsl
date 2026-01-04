@@ -14,7 +14,7 @@ void main()
     vec3 ambient = ambientStrength * lightColor;
     vec3 diffuse = diff * lightColor;
 
-    vec3 objectColor = vec3(0.2, 0.4, 0.5);
+    vec3 objectColor = vec3(0.8, 0.4, 0.5);
 
     vec3 result = (ambient + diffuse) * objectColor;
 

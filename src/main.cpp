@@ -45,20 +45,21 @@ int main()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_CULL_FACE);
 
 
     Input::get().init(window);
     Shader shader("shaders/vertex.glsl", "shaders/fragment.glsl");
     Player player({0.0f, 0.0f, 0.0f});
-    Chunk chunk;
+    Chunk chunk(0, 0, 0);
+    Chunk chunk2(1, 0, 0);
 
     while (!glfwWindowShouldClose(window)) {
         float time = glfwGetTime();
         deltaTime = time - lastFrame;
         lastFrame = time;
 
-        //std::cout << 1 / deltaTime << "\n";
+        std::cout << 1 / deltaTime << "\n";
 
         Input::get().update();
         auto& input = Input::get();
@@ -78,6 +79,7 @@ int main()
         shader.setMat4("uView", view);
 
         chunk.render(&shader);
+        chunk2.render(&shader);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
