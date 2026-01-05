@@ -5,7 +5,7 @@ Player::Player(glm::vec3 pos) :
     frontXY(glm::vec3(0.0f, 0.0f, -1.0f)),
     up(glm::vec3(0.0f, 1.0f, 0.0f)),
     worldUp(glm::vec3(0.0f, 1.0f, 0.0f)), yaw(-90.0f),
-    pitch(0.0f), speed(20.0f), sensitivity(0.1f)
+    pitch(0.0f), speed(50.0f), sensitivity(0.1f)
 {
     updateVectors();
 }

@@ -1,4 +1,5 @@
 #include "chunk.hpp"
+#include "world.hpp"
 
 constexpr int VOXEL_FACES[] = {
     // Left
@@ -59,7 +60,7 @@ constexpr int VOXEL_FACES[] = {
 constexpr int ITEMS_PER_VERTEX = 3;
 constexpr int VERTICES_PER_FACE = 6;
 
-Chunk::Chunk(int x, int y, int z) : chunkX(x), chunkY(y), chunkZ(z)
+Chunk::Chunk(World* w, int x, int y, int z) : chunkX(x), chunkY(y), chunkZ(z), world(w)
 {
     model = glm::translate(glm::mat4(1.0f), glm::vec3(chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE, chunkZ * CHUNK_SIZE));
 
@@ -90,29 +91,69 @@ void Chunk::generateTerrain(FastNoiseLite* noise)
     }
 }
 
-void Chunk::generateMesh()
+void Chunk::generateMesh(const ChunkNeighbors& n)
 {
     mesh.clear();
+    mesh.reserve(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 6);
+
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for (int y = 0; y < CHUNK_SIZE; ++y) {
             for (int x = 0; x < CHUNK_SIZE; ++x) {
                 if (!solidBlockAt(x, y, z)) continue;
 
-                if (!solidBlockAt(x-1, y, z)) addFace(x, y, z, 0);
-                if (!solidBlockAt(x+1, y, z)) addFace(x, y, z, 1);
-                if (!solidBlockAt(x, y-1, z)) addFace(x, y, z, 2);
-                if (!solidBlockAt(x, y+1, z)) addFace(x, y, z, 3);
-                if (!solidBlockAt(x, y, z-1)) addFace(x, y, z, 4);
-                if (!solidBlockAt(x, y, z+1)) addFace(x, y, z, 5);
+                bool visible;
+
+                // X
+                if (x > 0) {
+                    visible = !solidBlockAt(x-1, y, z);
+                } else {
+                    visible = !n.nx || !n.nx->solidBlockAt(CHUNK_SIZE-1, y, z);
+                }
+                if (visible) addFace(x, y, z, 0);
+
+                if (x < CHUNK_SIZE - 1) {
+                    visible = !solidBlockAt(x+1, y, z);
+                } else {
+                    visible = !n.px || !n.px->solidBlockAt(0, y, z);
+                }
+                if (visible) addFace(x, y, z, 1);
+
+                // Y
+                if (y > 0) {
+                    visible = !solidBlockAt(x, y-1, z);
+                } else {
+                    visible = !n.ny || !n.ny->solidBlockAt(x, CHUNK_SIZE-1, z);
+                }
+                if (visible) addFace(x, y, z, 2);
+
+                if (y < CHUNK_SIZE - 1) {
+                    visible = !solidBlockAt(x, y+1, z);
+                } else {
+                    visible = !n.py || !n.py->solidBlockAt(x, 0, z);
+                }
+                if (visible) addFace(x, y, z, 3);
+
+                // Z
+                if (z > 0) {
+                    visible = !solidBlockAt(x, y, z-1);
+                } else {
+                    visible = !n.nz || !n.nz->solidBlockAt(x, y, CHUNK_SIZE-1);
+                }
+                if (visible) addFace(x, y, z, 4);
+
+                if (z < CHUNK_SIZE - 1) {
+                    visible = !solidBlockAt(x, y, z+1);
+                } else {
+                    visible = !n.pz || !n.pz->solidBlockAt(x, y, 0);
+                }
+                if (visible) addFace(x, y, z, 5);
             }
         }
     }
 }
 
-bool Chunk::solidBlockAt(int x, int y, int z)
+inline bool Chunk::solidBlockAt(int x, int y, int z)
 {
-    if (!inChunk(x, y, z))  return false;
-
     int index = idx(x, y, z);
     return blocks[index] != 0;
 }

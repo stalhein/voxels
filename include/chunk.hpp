@@ -8,6 +8,8 @@
 #include <array>
 #include <vector>
 #include <iostream>
+#include <atomic>
+#include <memory>
 
 #include "settings.hpp"
 #include "shader.hpp"
@@ -16,30 +18,48 @@
 constexpr int CHUNK_SIZE = 16;
 constexpr int BLOCKS_IN_CHUNK = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
 
+enum class ChunkState
+{
+    Clean,
+    NeedsMeshing,
+    Meshing,
+    NeedsUploading
+};
+
+class World;
+class Chunk;
+
+struct ChunkNeighbors
+{
+    std::shared_ptr<Chunk> nx, px, ny, py, nz, pz;
+};
+
 class Chunk
 {
 public:
     int chunkX, chunkY, chunkZ;
 
-    bool dirty = true;
+    std::atomic<ChunkState> state{ChunkState::Clean};
 
-    Chunk(int x, int y, int z);
+    Chunk(World* w, int x, int y, int z);
 
     void generateTerrain(FastNoiseLite* noise);
-    void generateMesh();
+    void generateMesh(const ChunkNeighbors& n);
     void uploadMesh();
 
     void render(Shader* shader);
 
+    inline bool solidBlockAt(int x, int y, int z);
+
 private:
+    World* world;
+
     glm::mat4 model;
 
     std::array<uint8_t, BLOCKS_IN_CHUNK> blocks;
     std::vector<uint32_t> mesh;
 
     GLuint vbo, vao;
-
-    bool solidBlockAt(int x, int y, int z);
 
     void addFace(int blockX, int blockY, int blockZ, int normalIndex);
 

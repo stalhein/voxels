@@ -6,6 +6,7 @@ uniform mat4 uView;
 uniform mat4 uProjection;
 
 out vec3 Normal;
+out vec3 Position;
 
 const vec3 normals[6] = {
     vec3(-1, 0, 0),
@@ -25,6 +26,9 @@ void main()
 
     vec3 normal = normals[normalIndex];
     Normal = normal;
+
+    vec3 pos = vec3(uModel * vec4(x, y, z, 1.0));
     
-    gl_Position = uProjection * uView * uModel * vec4(x, y, z, 1.0);
+    gl_Position = uProjection * uView * vec4(pos, 1.0);
+    Position = pos;
 }

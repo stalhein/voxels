@@ -9,6 +9,7 @@
 #include "shader.hpp"
 #include "chunk.hpp"
 #include "fastnoiselite.hpp"
+#include "BS_thread_pool.hpp"
 
 struct ChunkCoord
 {
@@ -37,10 +38,16 @@ class World
 public:
     World();
 
-    void update();
+    void update(glm::vec3 playerPosition);
     void render(Shader* shader);
+
+    Chunk* getChunkAt(int cx, int cy, int cz);
+    std::shared_ptr<Chunk> getSharedChunkAt(int cx, int cy, int cz);
 private:
+    BS::thread_pool<> pool;
+    glm::ivec3 oldPlayerChunkPosition;
+
     FastNoiseLite noise;
 
-    std::unordered_map<ChunkCoord, std::unique_ptr<Chunk>, ChunkCoordHash> chunks;
+    std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>, ChunkCoordHash> chunks;
 };

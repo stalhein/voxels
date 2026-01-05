@@ -45,7 +45,7 @@ int main()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    //glEnable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
 
 
     Input::get().init(window);
@@ -66,7 +66,7 @@ int main()
 
         player.update(input.getXOffset(), input.getYOffset(), deltaTime);
 
-        world.update();
+        world.update(player.position);
 
 
         glClearColor(0.1f, 0.3f, 0.4f, 1.0f);
@@ -76,6 +76,7 @@ int main()
         glm::mat4 view = player.getViewMatrix();
 
         shader.use();
+        shader.setVec3("uPlayerPosition", player.position);
         shader.setMat4("uProjection", projection);
         shader.setMat4("uView", view);
 
