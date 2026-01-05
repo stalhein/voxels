@@ -5,6 +5,7 @@ uniform vec3 uPlayerPosition;
 
 in vec3 Normal;
 in vec3 Position;
+flat in uint BlockType;
 
 const vec3 lightDir = normalize(vec3(0.2, 0.8, 0.3));
 const vec3 lightColor = vec3(1.0);
@@ -18,6 +19,7 @@ void main()
     vec3 diffuse = diff * lightColor;
 
     vec3 objectColor = vec3(0.3, 0.7, 0.4);
+    if (BlockType == 2) objectColor = vec3(0.5, 0.3, 0.1);
 
     vec3 result = (ambient + diffuse) * objectColor;
 

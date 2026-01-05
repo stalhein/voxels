@@ -45,9 +45,11 @@ public:
     std::shared_ptr<Chunk> getSharedChunkAt(int cx, int cy, int cz);
 private:
     BS::thread_pool<> pool;
-    glm::ivec3 oldPlayerChunkPosition;
+    glm::ivec3 oldPlayerChunk;
 
     FastNoiseLite noise;
 
     std::unordered_map<ChunkCoord, std::shared_ptr<Chunk>, ChunkCoordHash> chunks;
+
+    std::deque<std::shared_ptr<Chunk>> meshQueue;
 };

@@ -7,6 +7,7 @@ uniform mat4 uProjection;
 
 out vec3 Normal;
 out vec3 Position;
+flat out uint BlockType;
 
 const vec3 normals[6] = {
     vec3(-1, 0, 0),
@@ -23,6 +24,7 @@ void main()
     uint y = (aVertex >> 5) & 31;
     uint z = (aVertex >> 10) & 31;
     uint normalIndex = (aVertex >> 15) & 7;
+    uint blockType = (aVertex >> 18) & 255;
 
     vec3 normal = normals[normalIndex];
     Normal = normal;
@@ -31,4 +33,5 @@ void main()
     
     gl_Position = uProjection * uView * vec4(pos, 1.0);
     Position = pos;
+    BlockType = blockType;
 }

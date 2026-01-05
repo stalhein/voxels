@@ -21,6 +21,7 @@ constexpr int BLOCKS_IN_CHUNK = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
 enum class ChunkState
 {
     Clean,
+    Terraining,
     NeedsMeshing,
     Meshing,
     NeedsUploading
@@ -61,12 +62,12 @@ private:
 
     GLuint vbo, vao;
 
-    void addFace(int blockX, int blockY, int blockZ, int normalIndex);
+    void addFace(int blockX, int blockY, int blockZ, int normalIndex, uint8_t blockType);
 
     inline int idx(int x, int y, int z) { return z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x; }
-    inline uint32_t packVertex(int x, int y, int z, int normalIndex)
+    inline uint32_t packVertex(int x, int y, int z, int normalIndex, uint8_t blockType)
     {
-        return (uint32_t)((x & 31) | ((y & 31) << 5) | ((z & 31) << 10) | ((normalIndex & 7) << 15));
+        return (uint32_t)((x & 31) | ((y & 31) << 5) | ((z & 31) << 10) | ((normalIndex & 7) << 15) | ((blockType & 255) << 18));
     }
     inline bool inChunk(int x, int y, int z)
     {

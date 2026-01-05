@@ -85,7 +85,8 @@ void Chunk::generateTerrain(FastNoiseLite* noise)
             if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
 
             for (int y = 0; y < localHeight; ++y) {
-                blocks[idx(x, y, z)] = 1;
+                if (y + chunkY * CHUNK_SIZE >= height-1)   blocks[idx(x, y, z)] = 1;
+                else    blocks[idx(x, y, z)] = 2;
             }
         }
     }
@@ -101,6 +102,8 @@ void Chunk::generateMesh(const ChunkNeighbors& n)
             for (int x = 0; x < CHUNK_SIZE; ++x) {
                 if (!solidBlockAt(x, y, z)) continue;
 
+                uint8_t block = blocks[idx(x, y, z)];
+
                 bool visible;
 
                 // X
@@ -109,14 +112,14 @@ void Chunk::generateMesh(const ChunkNeighbors& n)
                 } else {
                     visible = !n.nx || !n.nx->solidBlockAt(CHUNK_SIZE-1, y, z);
                 }
-                if (visible) addFace(x, y, z, 0);
+                if (visible) addFace(x, y, z, 0, block);
 
                 if (x < CHUNK_SIZE - 1) {
                     visible = !solidBlockAt(x+1, y, z);
                 } else {
                     visible = !n.px || !n.px->solidBlockAt(0, y, z);
                 }
-                if (visible) addFace(x, y, z, 1);
+                if (visible) addFace(x, y, z, 1, block);
 
                 // Y
                 if (y > 0) {
@@ -124,14 +127,14 @@ void Chunk::generateMesh(const ChunkNeighbors& n)
                 } else {
                     visible = !n.ny || !n.ny->solidBlockAt(x, CHUNK_SIZE-1, z);
                 }
-                if (visible) addFace(x, y, z, 2);
+                if (visible) addFace(x, y, z, 2, block);
 
                 if (y < CHUNK_SIZE - 1) {
                     visible = !solidBlockAt(x, y+1, z);
                 } else {
                     visible = !n.py || !n.py->solidBlockAt(x, 0, z);
                 }
-                if (visible) addFace(x, y, z, 3);
+                if (visible) addFace(x, y, z, 3, block);
 
                 // Z
                 if (z > 0) {
@@ -139,14 +142,14 @@ void Chunk::generateMesh(const ChunkNeighbors& n)
                 } else {
                     visible = !n.nz || !n.nz->solidBlockAt(x, y, CHUNK_SIZE-1);
                 }
-                if (visible) addFace(x, y, z, 4);
+                if (visible) addFace(x, y, z, 4, block);
 
                 if (z < CHUNK_SIZE - 1) {
                     visible = !solidBlockAt(x, y, z+1);
                 } else {
                     visible = !n.pz || !n.pz->solidBlockAt(x, y, 0);
                 }
-                if (visible) addFace(x, y, z, 5);
+                if (visible) addFace(x, y, z, 5, block);
             }
         }
     }
@@ -158,12 +161,12 @@ inline bool Chunk::solidBlockAt(int x, int y, int z)
     return blocks[index] != 0;
 }
 
-void Chunk::addFace(int blockX, int blockY, int blockZ, int normalIndex)
+void Chunk::addFace(int blockX, int blockY, int blockZ, int normalIndex, uint8_t blockType)
 {
     int base = normalIndex * VERTICES_PER_FACE * ITEMS_PER_VERTEX;
     for (int i = 0; i < VERTICES_PER_FACE; ++i) {
         int index = i * ITEMS_PER_VERTEX + base;
-        mesh.push_back(packVertex(VOXEL_FACES[index] + blockX, VOXEL_FACES[index+1] + blockY, VOXEL_FACES[index+2] + blockZ, normalIndex));
+        mesh.push_back(packVertex(VOXEL_FACES[index] + blockX, VOXEL_FACES[index+1] + blockY, VOXEL_FACES[index+2] + blockZ, normalIndex, blockType));
     }
 }
 

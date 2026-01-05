@@ -58,7 +58,7 @@ int main()
         deltaTime = time - lastFrame;
         lastFrame = time;
 
-        std::cout << 1 / deltaTime << "\n";
+        //std::cout << 1 / deltaTime << "\n";
 
         Input::get().update();
         auto& input = Input::get();
