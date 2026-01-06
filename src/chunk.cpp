@@ -79,7 +79,7 @@ void Chunk::generateTerrain(FastNoiseLite* noise)
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for (int x = 0; x < CHUNK_SIZE; ++x) {
             float noiseValue = noise->GetNoise((float)(x + chunkX * CHUNK_SIZE), (float)(z + chunkZ * CHUNK_SIZE));
-            int height = floor((noiseValue + 1) / 2 * CHUNK_SIZE * 4);
+            int height = floor((noiseValue*noiseValue + 1) / 2 * CHUNK_SIZE * 10);
             int localHeight = height - chunkY * CHUNK_SIZE;
             if (localHeight < 0) localHeight = 0;
             if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;

@@ -6,45 +6,30 @@ World::World() : pool(std::max(1u, std::thread::hardware_concurrency() - 1)), ol
     noise.SetFrequency(0.0067);
     noise.SetFractalType(FastNoiseLite::FractalType_FBm);
     noise.SetFractalOctaves(4);
+
+    for (int x = 0; x < 24; ++x) {
+        for (int y = 0; y < 10; ++y) {
+            for (int z = 0; z < 24; ++z) {
+                auto chunk = std::make_shared<Chunk>(this, x, y, z);
+                chunk->generateTerrain(&noise);
+                chunk->state = ChunkState::NeedsMeshing;
+
+                chunks[{x, y, z}] = chunk;
+                meshQueue.push_back(chunk);
+            }
+        }
+    }
 }
 
 void World::update(glm::vec3 playerPosition)
 {
     glm::ivec3 playerChunk = glm::floor(playerPosition / (float)CHUNK_SIZE);
 
-    const int RENDER_DISTANCE = 16;
-    const int RENDER_DISTANCE_SQUARED = RENDER_DISTANCE * RENDER_DISTANCE;
     const int MAX_MESH_JOBS = 6;
-
-    // Chunk creation
-    if (playerChunk.x != oldPlayerChunk.x || playerChunk.z != oldPlayerChunk.z) {
-        double oldTime = glfwGetTime();
-        for (int x = -RENDER_DISTANCE; x <= RENDER_DISTANCE; ++x) {
-            for (int z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; ++z) {
-                if (x*x + z*z > RENDER_DISTANCE_SQUARED)    continue;
-
-                for (int y = 0; y < 8; ++y) {
-                    int cx = playerChunk.x + x;
-                    int cz = playerChunk.z + z;
-
-                    if (getChunkAt(cx, y, cz))  continue;
-
-                    auto chunk = std::make_shared<Chunk>(this, cx, y, cz);
-                    chunk->generateTerrain(&noise);
-                    chunk->state = ChunkState::NeedsMeshing;
-
-                    chunks[{cx, y, cz}] = chunk;
-                    meshQueue.push_back(chunk);
-                }
-            }
-        }
-        oldPlayerChunk = playerChunk;
-        std::cout << glfwGetTime() - oldTime << std::endl;
-    }
 
     // Chunk meshing
     int jobs = 0;
-    while (!meshQueue.empty() && (jobs < MAX_MESH_JOBS || meshQueue.size() > 500)) {
+    while (!meshQueue.empty() && (jobs < MAX_MESH_JOBS || meshQueue.size() > 1000)) {
         auto chunk = meshQueue.front();
         meshQueue.pop_front();
 

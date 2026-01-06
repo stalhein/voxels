@@ -23,7 +23,7 @@ void main()
 
     vec3 result = (ambient + diffuse) * objectColor;
 
-    const float fogStart = 150.0;
+    const float fogStart = 200.0;
     const float fogEnd = 225.0;
     const float fogLength = fogEnd - fogStart;
     vec3 fogColor = vec3(0.4);
