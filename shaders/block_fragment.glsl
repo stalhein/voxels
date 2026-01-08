@@ -19,7 +19,9 @@ void main()
     vec3 diffuse = diff * lightColor;
 
     vec3 objectColor = vec3(0.3, 0.7, 0.4);
-    if (BlockType == 2) objectColor = vec3(0.5, 0.3, 0.1);
+    if (BlockType == 3) objectColor = vec3(0.5, 0.3, 0.1);
+    else if (BlockType == 4)    objectColor = vec3(0.7, 0.6, 0.5);
+    else if (BlockType == 1)    objectColor = vec3(0.1, 0.2, 0.8);
 
     vec3 result = (ambient + diffuse) * objectColor;
 
