@@ -33,7 +33,9 @@ async function main() {
     const camera = new Camera();
     const world = new World(device, context, format);
     await world.init("shader.wgsl");
-    const chunk = new Chunk(device);
+    let chunk = new Chunk(0, 0, 0, device);
+    world.addChunk(chunk);
+    chunk = new Chunk(1, 0, 0, device);
     world.addChunk(chunk);
 
     configureCanvas();

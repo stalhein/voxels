@@ -5,7 +5,7 @@ export class Camera {
         this.position = vec3.fromValues(0, 0, 2);
         this.pitch = 0;
         this.yaw = 0;
-        this.speed = 5;
+        this.speed = 7;
         this.sensitivity =  0.004;
 
         this.keys = {};
@@ -16,8 +16,10 @@ export class Camera {
             if (document.pointerLockElement) {
                 this.yaw -= e.movementX * this.sensitivity;
                 this.pitch -= e.movementY * this.sensitivity;
-                if (this.pitch > Math.PI / 2 - 0.01)   this.pitch = Math.PI / 2;
-                if (this.pitch < Math.PI / -2 + 0.01)   this.pitch = Math.PI / -2;
+                
+                const MAX_PITCH = Math.PI / 2 - 0.001;
+
+                this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
             }
         });
 
