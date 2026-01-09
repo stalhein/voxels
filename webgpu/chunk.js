@@ -1,158 +1,172 @@
-import { mat4, vec3 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
-
-const faces = new Int8Array([
-    // Left
-    0, 0, 0, 0,
-    0, 1, 1, 0,
-    0, 1, 0, 0,
-
-    0, 0, 0, 0,
-    0, 0, 1, 0,
-    0, 1, 1, 0,
-
-    // Right
-    1, 0, 0, 1,
-    1, 1, 0, 1,
-    1, 1, 1, 1,
-
-    1, 0, 0, 1,
-    1, 1, 1, 1,
-    1, 0, 1, 1,
-
-    // Bottom
-    0, 0, 0, 2,
-    1, 0, 0, 2,
-    1, 0, 1, 2,
-
-    0, 0, 0, 2,
-    1, 0, 1, 2,
-    0, 0, 1, 2,
-
-    // Top
-    0, 1, 0, 3,
-    1, 1, 1, 3,
-    1, 1, 0, 3,
-
-    0, 1, 0, 3,
-    0, 1, 1, 3,
-    1, 1, 1, 3,
-
-    // Back
-    0, 0, 0, 4,
-    1, 1, 0, 4,
-    1, 0, 0, 4,
-
-    0, 0, 0, 4,
-    0, 1, 0, 4,
-    1, 1, 0, 4,
-
-    // Front
-    0, 0, 1, 5,
-    1, 0, 1, 5,
-    1, 1, 1, 5,
-
-    0, 0, 1, 5,
-    1, 1, 1, 5,
-    0, 1, 1, 5
-]);
-
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
 
-const VERTS_PER_FACE = 6;
-const FACES_PER_BLOCK = 6;
-const VERTS_PER_BLOCK = VERTS_PER_FACE * FACES_PER_BLOCK;
-const STRIDE = 4;
+const faces = [
+    // Left face
+    0, 0, 0, 0,
+    0, 1, 0, 2,
+    0, 1, 1, 3,
+
+    0, 0, 0, 0,
+    0, 1, 1, 3,
+    0, 0, 1, 1,
+
+    // Right face
+    1, 0, 0, 0,
+    1, 0, 1, 1,
+    1, 1, 1, 3,
+
+    1, 0, 0, 0,
+    1, 1, 1, 3,
+    1, 1, 0, 2,
+
+    // Bottom face
+    0, 0, 0, 0,
+    0, 0, 1, 2,
+    1, 0, 1, 3,
+
+    0, 0, 0, 0,
+    1, 0, 1, 3,
+    1, 0, 0, 1,
+
+    // Top face
+    0, 1, 0, 0,
+    1, 1, 0, 1,
+    1, 1, 1, 3,
+
+    0, 1, 0, 0,
+    1, 1, 1, 3,
+    0, 1, 1, 2,
+
+    // Back face
+    0, 0, 0, 0,
+    1, 0, 0, 1,
+    1, 1, 0, 3,
+
+    0, 0, 0, 0,
+    1, 1, 0, 3,
+    0, 1, 0, 2,
+
+    // Front face
+    0, 0, 1, 0,
+    0, 1, 1, 2,
+    1, 1, 1, 3,
+
+    0, 0, 1, 0,
+    1, 1, 1, 3,
+    1, 0, 1, 1
+];
 
 export class Chunk {
-    constructor(device) {
-        this.device = device;
+    constructor(gl, x, y, z) {
+        this.gl = gl;
 
-        this.blocks = new Uint8Array(CHUNK_VOLUME);
-        this.blocks.fill(0);
+        this.blocks = new Int8Array(CHUNK_VOLUME);
 
-        for (let z = 0; z < CHUNK_SIZE; ++z) {
-            for (let y = 0; y < CHUNK_SIZE; ++y) {
-                for (let x = 0; x < CHUNK_SIZE; ++x) {
-                    if (x + z > y)  this.blocks[this.idx(x, y, z)] = 1;
-                }
-            }
-        }
+        this.vbo = null;
+        this.vao = null;
 
-
-        const maxVerts = CHUNK_VOLUME * VERTS_PER_BLOCK;
-        const vertexData = new ArrayBuffer(maxVerts * STRIDE * 4);
-
-        
-        this.vertexFloats = new Float32Array(vertexData);
-        this.vertexInts = new Int32Array(vertexData);
-
-        let v = 0;
-
-        for (let z = 0; z < CHUNK_SIZE; ++z) {
-            for (let y = 0; y < CHUNK_SIZE; ++y) {
-                for (let x = 0; x < CHUNK_SIZE; ++x) {
-                    if (this.getBlock(x, y, z) === 0) continue;
-
-                    if (this.isAir(x-1, y, z))  v = this.addFace(v, x, y, z, 0);
-                    if (this.isAir(x+1, y, z))  v = this.addFace(v, x, y, z, 1);
-                    if (this.isAir(x, y-1, z))  v = this.addFace(v, x, y, z, 2);
-                    if (this.isAir(x, y+1, z))  v = this.addFace(v, x, y, z, 3);
-                    if (this.isAir(x, y, z-1))  v = this.addFace(v, x, y, z, 4);
-                    if (this.isAir(x, y, z+1))  v = this.addFace(v, x, y, z, 5);
-                }
-            }
-        }
-
-        this.vertexCount = v;
-
-        console.log(this.vertexCount);
-        
-        this.vertexBuffer = device.createBuffer({
-            size: v * STRIDE * 4,
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-        });
-
-        device.queue.writeBuffer(this.vertexBuffer, 0, vertexData, 0, v * STRIDE*4);
+        this.vertices = [];
     }
 
-    addFace(v, x, y, z, normalIndex) {
-        let base = normalIndex * VERTS_PER_FACE * STRIDE;
-        for (let i = 0; i < VERTS_PER_FACE; ++i) {
-            let src = base + i * STRIDE;
-            let dst = v * STRIDE;
+    async init() {
+        this.generateTerrain();
 
-            this.vertexFloats[dst + 0] = faces[src + 0] + x;
-            this.vertexFloats[dst + 1] = faces[src + 1] + y;
-            this.vertexFloats[dst + 2] = faces[src + 2] + z;
-            this.vertexInts[dst + 3] = faces[src + 3];
+        this.generateMesh();
 
-            v++;
+        this.uploadMesh();
+    }
+
+    generateTerrain() {
+        this.blocks.fill(0);
+        for (let x = 0; x < CHUNK_SIZE; ++x) {
+            for (let y = 0; y < CHUNK_SIZE; ++y) {
+                for (let z = 0; z < CHUNK_SIZE; ++z) {
+                    if (x+z>y)  this.blocks[this.idx(x, y, z)] = 1;
+                }
+            }
         }
-        return v;
+    }
+
+    generateMesh() {
+        for (let x = 0; x < CHUNK_SIZE; ++x) {
+            for (let y = 0; y < CHUNK_SIZE; ++y) {
+                for (let z = 0; z < CHUNK_SIZE; ++z) {
+                    if (this.blocks[this.idx(x, y, z)] == 0)    continue;
+                    
+                    if (!this.solidBlock(x-1, y, z))   this.addFace(x, y, z, 0);
+                    if (!this.solidBlock(x+1, y, z))   this.addFace(x, y, z, 1);
+                    if (!this.solidBlock(x, y-1, z))   this.addFace(x, y, z, 2);
+                    if (!this.solidBlock(x, y+1, z))   this.addFace(x, y, z, 3);
+                    if (!this.solidBlock(x, y, z-1))   this.addFace(x, y, z, 4);
+                    if (!this.solidBlock(x, y, z+1))   this.addFace(x, y, z, 5);
+                }
+            }
+        }
+    }
+
+    uploadMesh() {
+        const gl = this.gl;
+
+        this.vao = gl.createVertexArray();
+        this.vbo = gl.createBuffer();
+
+        gl.bindVertexArray(this.vao);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Uint32Array(this.vertices),
+            gl.STATIC_DRAW
+        );
+
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribIPointer(
+            0,
+            1,
+            gl.UNSIGNED_INT,
+            4,
+            0
+        );
+
+        gl.bindVertexArray(null);
+    }
+
+    render() {
+        const gl = this.gl;
+        gl.bindVertexArray(this.vao);
+        gl.drawArrays(gl.TRIANGLES, 0, this.vertices.length);
     }
 
     idx(x, y, z) {
-        return z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x;
+        return x * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + z;
     }
 
-    setBlock(x, y, z, block) {
-        if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE)   return;
-        this.blocks[this.idx(x, y, z)] = block;
+    inBounds(x, y, z) {
+        return x >= 0 && y >= 0 && z >= 0 && x < CHUNK_SIZE && y < CHUNK_SIZE && z < CHUNK_SIZE;
     }
 
-    getBlock(x, y, z) {
-        if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE)   return 0;
-        return this.blocks[this.idx(x, y, z)];
+    solidBlock(x, y, z) {
+        if (!this.inBounds(x, y, z))    return false;
+        return this.blocks[this.idx(x, y, z)] != 0;
     }
 
-    isAir(x, y, z) {
-        if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE)   return true;
-        return this.blocks[this.idx(x, y, z)] === 0;
+    packVertex(x, y, z, normalIndex) {
+        return (
+            (x & 31) |
+            ((y & 31) << 5) |
+            ((z & 31) << 10) |
+            ((normalIndex & 7) << 15)
+        ) >>> 0;
     }
 
-    draw(pass) {
-        pass.setVertexBuffer(0, this.vertexBuffer);
-        pass.draw(this.vertexCount);
+    addFace(x, y, z, normalIndex) {
+        const base = normalIndex * 24;
+        for (let i = 0; i < 6; ++i) {
+            const lx = faces[base+i*4+0] + x;
+            const ly = faces[base+i*4+1] + y;
+            const lz = faces[base+i*4+2] + z;
+            this.vertices.push(this.packVertex(lx, ly, lz, normalIndex));
+        }
     }
 }

@@ -1,61 +1,69 @@
-import {World} from "./world.js";
+import {mat4} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
+import {Camera} from "./camera.js"
+import {Shader} from "./shader.js";
 import {Chunk} from "./chunk.js";
-import {Camera} from "./camera.js";
 
 const canvas = document.querySelector("canvas");
-let width, height;
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-async function main() {
-    const adapter = await navigator.gpu.requestAdapter();
-    const device = await adapter.requestDevice();
-    const context = canvas.getContext("webgpu");
-    const format = navigator.gpu.getPreferredCanvasFormat();
-
-    function configureCanvas() {
-        width = canvas.clientWidth;
-        height = canvas.clientHeight;
-
-        canvas.width = Math.max(1, Math.min(width, device.limits.maxTextureDimension2D));
-        canvas.height = Math.max(1, Math.min(height, device.limits.maxTextureDimension2D));
-
-        context.configure({device, format, alphaMode: "opaque"});
-
-        world.depthTexture = device.createTexture({
-            size: [canvas.width, canvas.height],
-            format: "depth24plus",
-            usage: GPUTextureUsage.RENDER_ATTACHMENT
-        });
-
-        world.renderPassDesc.depthStencilAttachment.view = world.depthTexture.createView();
-    }
-
-
-    const camera = new Camera();
-    const world = new World(device, context, format);
-    await world.init("shader.wgsl");
-    let chunk = new Chunk(0, 0, 0, device);
-    world.addChunk(chunk);
-    chunk = new Chunk(1, 0, 0, device);
-    world.addChunk(chunk);
-
-    configureCanvas();
-
-    const observer = new ResizeObserver(() => {
-        configureCanvas();
-    });
-
-    let lastTime = performance.now();
-    function loop(now) {
-        const dt = (now-lastTime)/1000;
-        lastTime = now;
-
-        camera.update(dt);
-
-        world.render(camera);
-
-        requestAnimationFrame(loop);
-    }
-    requestAnimationFrame(loop);
-    
+const gl = canvas.getContext("webgl2");
+if (!gl) {
+    console.error("WebGL2 not supported.");
 }
-main();
+
+const camera = new Camera();
+
+const projection = mat4.create();
+mat4.perspective(
+    projection,
+    Math.PI / 3,
+    canvas.width / canvas.height,
+    0.1,
+    1000.0
+);
+
+let shader = null;
+let vbo, vao;
+
+let lastTime;
+
+async function init() {
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.enable(gl.DEPTH_TEST);
+    //gl.enable(gl.CULL_FACE);
+    //gl.cullFace(gl.BACK);
+
+    shader = new Shader(gl, "shaders/vertex.glsl", "shaders/fragment.glsl");
+    await shader.load();
+}
+
+await init();
+
+const chunk = new Chunk(gl, 0, 0, 0);
+await chunk.init();
+
+function render(time) {
+    const dt = (time - lastTime) / 1000;
+    lastTime = time;
+
+    camera.update(dt);
+
+    gl.clearColor(0.1, 0.1, 0.1, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    shader.use();
+
+    const view = camera.getViewMatrix();
+    shader.setMat4("uProjection", projection);
+    shader.setMat4("uView", view);
+
+    const model = mat4.create();
+    shader.setMat4("uModel", model);
+
+    chunk.render();
+
+    requestAnimationFrame(render);
+}
+
+render();
