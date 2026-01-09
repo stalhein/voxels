@@ -1,3 +1,7 @@
+import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
+import FastNoiseLite from "./FastNoiseLite.js";
+import {World} from "./world.js";
+
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
 
@@ -58,8 +62,19 @@ const faces = [
 ];
 
 export class Chunk {
-    constructor(gl, x, y, z) {
+    constructor(gl, world, x, y, z) {
         this.gl = gl;
+
+        this.chunkX = x;
+        this.chunkY = y;
+        this.chunkZ = z;
+
+        this.model = mat4.create();
+
+        this.dirty = false;
+        this.needsUploading = false;
+
+        this.world = world;
 
         this.blocks = new Int8Array(CHUNK_VOLUME);
 
@@ -70,22 +85,34 @@ export class Chunk {
     }
 
     async init() {
+        mat4.translate(this.model, this.model, vec3.fromValues(this.chunkX*CHUNK_SIZE, this.chunkY*CHUNK_SIZE, this.chunkZ*CHUNK_SIZE));
+
         this.generateTerrain();
-
-        this.generateMesh();
-
-        this.uploadMesh();
     }
 
     generateTerrain() {
+        const noise = new FastNoiseLite();
+        noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        noise.SetFrequency(0.0067);
+        noise.SetFractalType(FastNoiseLite.FractalType.FBm);
+        noise.SetFractalOctaves(6);
+
         this.blocks.fill(0);
         for (let x = 0; x < CHUNK_SIZE; ++x) {
-            for (let y = 0; y < CHUNK_SIZE; ++y) {
-                for (let z = 0; z < CHUNK_SIZE; ++z) {
-                    if (x+z>y)  this.blocks[this.idx(x, y, z)] = 1;
+            for (let z = 0; z < CHUNK_SIZE; ++z) {
+                const noiseValue = noise.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z);
+                const height = (noiseValue+1)/2 * CHUNK_SIZE*4;
+                let localHeight = height - this.chunkY*CHUNK_SIZE;
+                if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
+                if (localHeight < 0)    localHeight = 0;
+
+                for (let y = 0; y < localHeight; ++y) {
+                    this.blocks[this.idx(x, y, z)] = 1;
                 }
             }
         }
+
+        this.dirty = true;
     }
 
     generateMesh() {
@@ -103,6 +130,9 @@ export class Chunk {
                 }
             }
         }
+
+        this.dirty = false;
+        this.needsUploading = true;
     }
 
     uploadMesh() {
@@ -130,6 +160,8 @@ export class Chunk {
         );
 
         gl.bindVertexArray(null);
+
+        this.needsUploading = false;
     }
 
     render() {
@@ -147,8 +179,7 @@ export class Chunk {
     }
 
     solidBlock(x, y, z) {
-        if (!this.inBounds(x, y, z))    return false;
-        return this.blocks[this.idx(x, y, z)] != 0;
+        return this.getBlock(x, y, z) != 0;
     }
 
     packVertex(x, y, z, normalIndex) {
@@ -168,5 +199,15 @@ export class Chunk {
             const lz = faces[base+i*4+2] + z;
             this.vertices.push(this.packVertex(lx, ly, lz, normalIndex));
         }
+    }
+
+    getLocalBlock(x, y, z) {
+        if (!this.inBounds(x, y, z)) { return 0; }
+        
+        return this.blocks[this.idx(x, y, z)];
+    }
+
+    getBlock(x, y, z) {
+        return this.world.getBlockAtWorld(this.chunkX * CHUNK_SIZE + x, this.chunkY * CHUNK_SIZE + y, this.chunkZ * CHUNK_SIZE + z);
     }
 }
