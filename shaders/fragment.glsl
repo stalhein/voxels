@@ -39,9 +39,9 @@ vec2 getUV() {
 }
 
 vec2 getTile() {
-    if (BlockType == 1u)    return vec2(0, 0);
-    else if (BlockType == 2u)    return vec2(1, 0);
-    return vec2(0, 0);
+    uint x = (BlockType-1u) % 7u;
+    uint y = (BlockType-1u) / 7u;
+    return vec2(x, y);
 }
 
 void main() {

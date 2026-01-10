@@ -7,7 +7,8 @@ const CHUNK_VOLUME = CHUNK_SIZE ** 3;
 const BlockType = {
     AIR: 0,
     GRASS: 1,
-    DIRT: 2
+    DIRT: 2,
+    STONE: 3
 };
 
 const faces = [
@@ -112,8 +113,10 @@ export class Chunk {
                 if (localHeight < 0)    localHeight = BlockType.AIR;
 
                 for (let y = 0; y < localHeight; ++y) {
-                    if (y + this.chunkY * CHUNK_SIZE >= height - 1)   this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
-                    else   this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
+                    const realY = y + this.chunkY * CHUNK_SIZE;
+                    if (realY >= height - 1)   this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
+                    else if (realY >= height - 2)   this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
+                    else    this.blocks[this.idx(x, y, z)] = BlockType.STONE;
                 }
             }
         }
