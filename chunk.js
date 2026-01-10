@@ -106,8 +106,8 @@ export class Chunk {
         this.blocks.fill(BlockType.AIR);
         for (let x = 0; x < CHUNK_SIZE; ++x) {
             for (let z = 0; z < CHUNK_SIZE; ++z) {
-                const noiseValue = noise.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z);
-                const height = (noiseValue+1)/2 * CHUNK_SIZE*4;
+                /*const noiseValue = noise.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z);
+                const height = (noiseValue+1)/2 * CHUNK_SIZE*1;
                 let localHeight = height - this.chunkY*CHUNK_SIZE;
                 if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
                 if (localHeight < 0)    localHeight = BlockType.AIR;
@@ -117,6 +117,9 @@ export class Chunk {
                     if (realY >= height - 1)   this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
                     else if (realY >= height - 2)   this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
                     else    this.blocks[this.idx(x, y, z)] = BlockType.STONE;
+                }*/
+                for (let y = 0; y < x+z; ++y) {
+                    this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
                 }
             }
         }
@@ -125,19 +128,54 @@ export class Chunk {
     }
 
     generateMesh() {
+        
+
         for (let x = 0; x < CHUNK_SIZE; ++x) {
+            // Fill mask
+            const mask = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+            mask.fill(0);
+
             for (let y = 0; y < CHUNK_SIZE; ++y) {
                 for (let z = 0; z < CHUNK_SIZE; ++z) {
-                    if (this.blocks[this.idx(x, y, z)] == BlockType.AIR)    continue;
+                    const a = this.getBlock(x, y, z);
+                    const b = this.getBlock(x-1, y, z);
 
-                    const blockType = this.blocks[this.idx(x, y, z)];
+                    if (a !== BlockType.AIR && b === BlockType.AIR) mask[y * CHUNK_SIZE + z] = a;
+                }
+            }
 
-                    if (!this.solidBlock(x-1, y, z))   this.addFace(x, y, z, 0, blockType);
-                    if (!this.solidBlock(x+1, y, z))   this.addFace(x, y, z, 1, blockType);
-                    if (!this.solidBlock(x, y-1, z))   this.addFace(x, y, z, 2, blockType);
-                    if (!this.solidBlock(x, y+1, z))   this.addFace(x, y, z, 3, blockType);
-                    if (!this.solidBlock(x, y, z-1))   this.addFace(x, y, z, 4, blockType);
-                    if (!this.solidBlock(x, y, z+1))   this.addFace(x, y, z, 5, blockType);
+            // Create mesh
+            for (let y = 0; y < CHUNK_SIZE; ++y) {
+                for (let z = 0; z < CHUNK_SIZE;) {
+                    const blockType = mask[y * CHUNK_SIZE + z];
+                    if (blockType == BlockType.AIR) {
+                        z++;
+                        continue;
+                    }
+
+                    // Expand width
+                    let w = 1;
+                    while (z + w < CHUNK_SIZE && mask[y * CHUNK_SIZE + z + w] == blockType) w++;
+
+                    // Expand height
+                    let h = 1;
+                    outer:
+                    while (y + h < CHUNK_SIZE) {
+                        for (let k = 0; k < w; ++k) {
+                            if (mask[(y+h) * CHUNK_SIZE + z + k] != blockType)  break outer;
+                        }
+                        h++;
+                    }
+
+                    this.addQuadX(x, y, z, w, h, 0, blockType);
+
+                    for (let dy = 0; dy < h; ++dy) {
+                        for (let dz = 0; dz < w; ++dz) {
+                            mask[(y+dy) * CHUNK_SIZE + z + dz] = 0;
+                        }
+                    }
+
+                    z += w;
                 }
             }
         }
@@ -178,6 +216,7 @@ export class Chunk {
     render() {
         const gl = this.gl;
         gl.bindVertexArray(this.vao);
+        //gl.drawArrays(gl.LINES, 0, 810);
         gl.drawArrays(gl.TRIANGLES, 0, this.vertices.length);
     }
 
@@ -211,6 +250,16 @@ export class Chunk {
             const lz = faces[base+i*4+2] + z;
             this.vertices.push(this.packVertex(lx, ly, lz, normalIndex, blockType));
         }
+    }
+
+    addQuadX(x, y, z, w, h, normalIndex, blockType) {
+        const v0 = this.packVertex(x, y, z, normalIndex, blockType);
+        const v1 = this.packVertex(x, y+h, z, normalIndex, blockType);
+        const v2 = this.packVertex(x, y+h, z+w, normalIndex, blockType);
+        const v3 = this.packVertex(x, y, z+w, normalIndex, blockType);
+
+        this.vertices.push(v0, v1, v2);
+        this.vertices.push(v0, v2, v3);
     }
 
     getLocalBlock(x, y, z) {

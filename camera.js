@@ -2,7 +2,7 @@ import { mat4, vec3 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/ind
 
 export class Camera {
     constructor() {
-        this.position = vec3.fromValues(110, 64, 100);
+        this.position = vec3.fromValues(0, 10, 10);
         this.pitch = 0;
         this.yaw = Math.PI;
         this.speed = 30;
