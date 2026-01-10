@@ -1,5 +1,5 @@
 const CHUNK_SIZE = 16;
-const CELL_SIZE = 6;
+const CELL_SIZE = 12;
 const WORLD_CELL_SIZE = CELL_SIZE * CHUNK_SIZE;
 
 export class Worley {
@@ -20,7 +20,7 @@ export class Worley {
         return {
             x: (cx * WORLD_CELL_SIZE) + (xp * WORLD_CELL_SIZE),
             z: (cz * WORLD_CELL_SIZE) + (zp * WORLD_CELL_SIZE),
-            biome: Math.floor(this.hash(cx+3, cz+8) * 5)
+            biome: Math.floor(this.hash(cx+3, cz+8) * 2)
         };
     }
 
@@ -38,12 +38,12 @@ export class Worley {
                 const dz = wz - point.z;
                 const distanceSqrd = dx*dx+dz*dz;
 
-                points.push({d: distanceSqrd, boime: point.biome});
+                points.push({d: distanceSqrd, biome: point.biome});
             }
         }
 
         points.sort((a, b) => a.d - b.d);
 
-        return points.slice(0, 3);
+        return points.slice(0, 2);
     }
 }

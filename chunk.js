@@ -12,60 +12,21 @@ const BlockType = {
     STONE: 3
 };
 
-const faces = [
-    // Left face
-    0, 0, 0, 0,
-    0, 1, 1, 2,
-    0, 1, 0, 3,
-
-    0, 0, 0, 0,
-    0, 0, 1, 3,
-    0, 1, 1, 1,
-
-    // Right face
-    1, 0, 0, 0,
-    1, 1, 1, 1,
-    1, 0, 1, 3,
-
-    1, 0, 0, 0,
-    1, 1, 0, 3,
-    1, 1, 1, 2,
-
-    // Bottom face
-    0, 0, 0, 0,
-    1, 0, 1, 2,
-    0, 0, 1, 3,
-
-    0, 0, 0, 0,
-    1, 0, 0, 3,
-    1, 0, 1, 1,
-
-    // Top face
-    0, 1, 0, 0,
-    1, 1, 1, 1,
-    1, 1, 0, 3,
-
-    0, 1, 0, 0,
-    0, 1, 1, 3,
-    1, 1, 1, 2,
-
-    // Back face
-    0, 0, 0, 0,
-    1, 1, 0, 1,
-    1, 0, 0, 3,
-
-    0, 0, 0, 0,
-    0, 1, 0, 3,
-    1, 1, 0, 2,
-
-    // Front face
-    0, 0, 1, 0,
-    1, 1, 1, 2,
-    0, 1, 1, 3,
-
-    0, 0, 1, 0,
-    1, 0, 1, 3,
-    1, 1, 1, 1
+const Biomes = [
+    {
+        name: "grass",
+        id: 0,
+        baseHeight: 0,
+        amplitude: 10,
+        blockTop: BlockType.GRASS
+    },
+    {
+        name: "stone_mountain",
+        id: 1,
+        baseHeight: 20,
+        amplitude: CHUNK_SIZE*2,
+        blockTop: BlockType.STONE
+    }
 ];
 
 export class Chunk {
@@ -132,35 +93,38 @@ export class Chunk {
     }
 
     getHeight(x, z) {
-        const biomes = this.worley.getBiomeAt(x + this.chunkX * CHUNK_SIZE, z + this.chunkZ * CHUNK_SIZE);
+        const wx = x + this.chunkX * CHUNK_SIZE;
+        const wz = z + this.chunkZ * CHUNK_SIZE;
+
+        const biomes = this.worley.getBiomeAt(wx, wz);
 
         const b0 = biomes[0];
         const b1 = biomes[1];
-        const b2 = biomes[2];
 
         const d0 = Math.sqrt(b0.d);
         const d1 = Math.sqrt(b1.d);
-        const d2 = Math.sqrt(b2.d);
 
-        let w0 = Math.pow(1/(d0+0.0001), 4);
-        let w1 = Math.pow(1/(d1+0.0001), 4);
-        let w2 = Math.pow(1/(d2+0.0001), 4);
+        const blendSize = 100;
+        let factor = (d1-d0) / blendSize;
+        factor = Math.max(0, Math.min(1, factor));
 
-        const totalWeight = w0+w1+w2;
-        w0 /= totalWeight;
-        w1 /= totalWeight;
-        w2 /= totalWeight;
+        const smoothFactor = factor*factor*(3-2*factor);
+        
+        const amplitude = biomes[b0.biome].amplitude * (1-smoothFactor) + biomes[b1.biome].amplitude * smoothFactor;
 
-        const h0 = this.getBiomeHeight(b0, x, z);
-        const h1 = this.getBiomeHeight(b1, x, z);
-        const h2 = this.getBiomeHeight(b2, x, z);
+        const noiseValue = (this.noise.GetNoise(x, z)+1) / 2;
 
-        return (h0 * w0) + (h1 * w1) + (h2 * w2);
+        const height = noiseValue * amplitude + 19;
+
+        return height;
     }
 
-    getBiomeHeight(biome, x, z) {
-        const noiseValue = (this.noise.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z)+1) / 2;
-        const height = (biome == 0 ? noiseValue : noiseValue ** 3) * CHUNK_SIZE*4;
+    getBiomeHeight(biomeIndex, x, z) {
+        const noiseValue = (this.noise.GetNoise(x, z)+1) / 2;
+
+        const biomeData = Biomes[biomeIndex];
+
+        const height = noiseValue * biomeData.amplitude + biomeData.baseHeight;
 
         return height;
     }
