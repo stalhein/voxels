@@ -89,53 +89,80 @@ export class Chunk {
         this.vao = null;
 
         this.vertices = [];
+
+
+        this.noise = new FastNoiseLite();
+
+        this.worley = null;
     }
 
     async init() {
         mat4.translate(this.model, this.model, vec3.fromValues(this.chunkX*CHUNK_SIZE, this.chunkY*CHUNK_SIZE, this.chunkZ*CHUNK_SIZE));
 
+        this.noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        this.noise.SetFrequency(0.0067);
+        this.noise.SetFractalType(FastNoiseLite.FractalType.FBm);
+        this.noise.SetFractalOctaves(6);
+
+        this.worley = new Worley(12345);
+
         this.generateTerrain();
     }
 
     generateTerrain() {
-        const noise1 = new FastNoiseLite();
-        noise1.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        noise1.SetFrequency(0.0067);
-        noise1.SetFractalType(FastNoiseLite.FractalType.FBm);
-        noise1.SetFractalOctaves(1);
-
-        const noise2 = new FastNoiseLite();
-        noise2.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        noise2.SetFrequency(0.0067);
-        noise2.SetFractalType(FastNoiseLite.FractalType.FBm);
-        noise2.SetFractalOctaves(10);
-
-        const worley = new Worley(12345);
-
         this.blocks.fill(BlockType.AIR);
         for (let x = 0; x < CHUNK_SIZE; ++x) {
             for (let z = 0; z < CHUNK_SIZE; ++z) {
-                const biome = worley.getBiomeAt(x + this.chunkX * CHUNK_SIZE, z + this.chunkZ * CHUNK_SIZE);
-
-
-                const noiseValue = biome == 0 ? noise1.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z) : noise2.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z);
-                const height = (noiseValue+1)/2 * CHUNK_SIZE*4;
+                const height = this.getHeight(x, z);
+                
                 let localHeight = height - this.chunkY*CHUNK_SIZE;
                 if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
                 if (localHeight < 0)    localHeight = BlockType.AIR;
 
                 for (let y = 0; y < localHeight; ++y) {
-                    if (biome == 0) this.blocks[this.idx(x, y, z)] = BlockType.STONE;
-                    else this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
-                    /*const realY = y + this.chunkY * CHUNK_SIZE;
+                    const realY = y + this.chunkY * CHUNK_SIZE;
                     if (realY >= height - 1)   this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
                     else if (realY >= height - 2)   this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
-                    else    this.blocks[this.idx(x, y, z)] = BlockType.STONE;*/
+                    else    this.blocks[this.idx(x, y, z)] = BlockType.STONE;
                 }
             }
         }
 
         this.dirty = true;
+    }
+
+    getHeight(x, z) {
+        const biomes = this.worley.getBiomeAt(x + this.chunkX * CHUNK_SIZE, z + this.chunkZ * CHUNK_SIZE);
+
+        const b0 = biomes[0];
+        const b1 = biomes[1];
+        const b2 = biomes[2];
+
+        const d0 = Math.sqrt(b0.d);
+        const d1 = Math.sqrt(b1.d);
+        const d2 = Math.sqrt(b2.d);
+
+        let w0 = Math.pow(1/(d0+0.0001), 4);
+        let w1 = Math.pow(1/(d1+0.0001), 4);
+        let w2 = Math.pow(1/(d2+0.0001), 4);
+
+        const totalWeight = w0+w1+w2;
+        w0 /= totalWeight;
+        w1 /= totalWeight;
+        w2 /= totalWeight;
+
+        const h0 = this.getBiomeHeight(b0, x, z);
+        const h1 = this.getBiomeHeight(b1, x, z);
+        const h2 = this.getBiomeHeight(b2, x, z);
+
+        return (h0 * w0) + (h1 * w1) + (h2 * w2);
+    }
+
+    getBiomeHeight(biome, x, z) {
+        const noiseValue = (this.noise.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z)+1) / 2;
+        const height = (biome == 0 ? noiseValue : noiseValue ** 3) * CHUNK_SIZE*4;
+
+        return height;
     }
 
     async generateMesh() {

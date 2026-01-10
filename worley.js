@@ -28,8 +28,7 @@ export class Worley {
         const cx = Math.floor(wx / WORLD_CELL_SIZE);
         const cz = Math.floor(wz / WORLD_CELL_SIZE);
 
-        let minimumDistanceSqrd = Infinity;
-        let biome = 0;
+        let points = [];
 
         for (let x = -1; x <= 1; ++x) {
             for (let z = -1; z <= 1; ++z) {
@@ -39,13 +38,12 @@ export class Worley {
                 const dz = wz - point.z;
                 const distanceSqrd = dx*dx+dz*dz;
 
-                if (distanceSqrd < minimumDistanceSqrd) {
-                    minimumDistanceSqrd = distanceSqrd;
-                    biome = point.biome;
-                }
+                points.push({d: distanceSqrd, boime: point.biome});
             }
         }
 
-        return biome;
+        points.sort((a, b) => a.d - b.d);
+
+        return points.slice(0, 3);
     }
 }
