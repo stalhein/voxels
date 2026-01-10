@@ -40,7 +40,7 @@ export class World {
         const cx = Math.floor(playerPos[0]/CHUNK_SIZE);
         const cz = Math.floor(playerPos[2]/CHUNK_SIZE);
 
-        const RENDER_RADIUS = 16;
+        const RENDER_RADIUS = 8;
 
         if (cx != this.oldPlayerChunk[0] || cz != this.oldPlayerChunk[2]) {
             this.oldPlayerChunk[0] = cx;

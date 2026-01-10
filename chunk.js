@@ -1,5 +1,6 @@
 import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
 import FastNoiseLite from "./FastNoiseLite.js";
+import {Worley} from "./worley.js";
 
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
@@ -97,26 +98,39 @@ export class Chunk {
     }
 
     generateTerrain() {
-        const noise = new FastNoiseLite();
-        noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        noise.SetFrequency(0.0067);
-        noise.SetFractalType(FastNoiseLite.FractalType.FBm);
-        noise.SetFractalOctaves(6);
+        const noise1 = new FastNoiseLite();
+        noise1.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        noise1.SetFrequency(0.0067);
+        noise1.SetFractalType(FastNoiseLite.FractalType.FBm);
+        noise1.SetFractalOctaves(1);
+
+        const noise2 = new FastNoiseLite();
+        noise2.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        noise2.SetFrequency(0.0067);
+        noise2.SetFractalType(FastNoiseLite.FractalType.FBm);
+        noise2.SetFractalOctaves(10);
+
+        const worley = new Worley(12345);
 
         this.blocks.fill(BlockType.AIR);
         for (let x = 0; x < CHUNK_SIZE; ++x) {
             for (let z = 0; z < CHUNK_SIZE; ++z) {
-                const noiseValue = noise.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z);
+                const biome = worley.getBiomeAt(x + this.chunkX * CHUNK_SIZE, z + this.chunkZ * CHUNK_SIZE);
+
+
+                const noiseValue = biome == 0 ? noise1.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z) : noise2.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z);
                 const height = (noiseValue+1)/2 * CHUNK_SIZE*4;
                 let localHeight = height - this.chunkY*CHUNK_SIZE;
                 if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
                 if (localHeight < 0)    localHeight = BlockType.AIR;
 
                 for (let y = 0; y < localHeight; ++y) {
-                    const realY = y + this.chunkY * CHUNK_SIZE;
+                    if (biome == 0) this.blocks[this.idx(x, y, z)] = BlockType.STONE;
+                    else this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
+                    /*const realY = y + this.chunkY * CHUNK_SIZE;
                     if (realY >= height - 1)   this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
                     else if (realY >= height - 2)   this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
-                    else    this.blocks[this.idx(x, y, z)] = BlockType.STONE;
+                    else    this.blocks[this.idx(x, y, z)] = BlockType.STONE;*/
                 }
             }
         }
