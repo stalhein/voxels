@@ -1,4 +1,3 @@
-import {mat4} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
 import {Camera} from "./camera.js";
 import {World} from "./world.js";
 
@@ -15,16 +14,16 @@ const camera = new Camera();
 const world = new World(gl);
 await world.init();
 
-let lastTime;
+let lastTime = performance.now();
 
-async function init() {
+function init() {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
-    gl.cullFace(gl.FRONT);
+    gl.cullFace(gl.BACK);
 }
 
-await init();
+init();
 
 function render(time) {
     const dt = (time - lastTime) / 1000;
@@ -33,7 +32,7 @@ function render(time) {
     camera.update(dt);
     world.update(canvas.width, canvas.height);
 
-    gl.clearColor(0.1, 0.1, 0.1, 1.0);
+    gl.clearColor(0.5, 0.65, 0.8, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     world.render(camera);

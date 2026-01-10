@@ -6,10 +6,6 @@ export class Shader {
         this.fragmentPath = fragmentPath;
     }
 
-    destructor() {
-        this.gl.deleteProgram(this.program);
-    }
-
     async load() {
         const gl = this.gl;
         
@@ -61,6 +57,11 @@ export class Shader {
     setMat4(name, value) {
         const uniform = this.getUniform(name);
         this.gl.uniformMatrix4fv(uniform, false, value);
+    }
+
+    setInt(name, value) {
+        const uniform = this.getUniform(name);
+        this.gl.uniform1i(uniform, value);
     }
 
     getUniform(name) {

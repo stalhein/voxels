@@ -2,6 +2,7 @@ import {mat4} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
 import {Chunk} from "./chunk.js";
 import {Shader} from "./shader.js";
 import {CHUNK_SIZE} from "./constants.js";
+import {Texture} from "./texture.js";
 
 export class World {
     constructor(gl) {
@@ -10,6 +11,7 @@ export class World {
         this.projection = mat4.create();
         
         this.shader = null;
+        this.textureAtlas = null;
 
         this.chunks = new Map();
     }
@@ -17,6 +19,9 @@ export class World {
     async init() {
         this.shader = new Shader(this.gl, "shaders/vertex.glsl", "shaders/fragment.glsl");
         await this.shader.load();
+
+        this.textureAtlas = new Texture(this.gl, "assets/atlas.png");
+        await this.textureAtlas.load();
 
         for (let x = 0; x < 16; ++x) {
             for (let y = 0; y < 4; ++y) {
@@ -48,6 +53,8 @@ export class World {
         this.shader.use();
 
         const view = camera.getViewMatrix();
+        this.textureAtlas.bind();
+        this.shader.setInt("uAtlas", 0);
         this.shader.setMat4("uProjection", this.projection);
         this.shader.setMat4("uView", view);
 

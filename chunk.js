@@ -1,64 +1,69 @@
 import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
 import FastNoiseLite from "./FastNoiseLite.js";
-import {World} from "./world.js";
 
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
 
+const BlockType = {
+    AIR: 0,
+    GRASS: 1,
+    DIRT: 2
+};
+
 const faces = [
     // Left face
     0, 0, 0, 0,
-    0, 1, 0, 2,
-    0, 1, 1, 3,
+    0, 1, 1, 2,
+    0, 1, 0, 3,
 
     0, 0, 0, 0,
-    0, 1, 1, 3,
-    0, 0, 1, 1,
+    0, 0, 1, 3,
+    0, 1, 1, 1,
 
     // Right face
     1, 0, 0, 0,
-    1, 0, 1, 1,
-    1, 1, 1, 3,
+    1, 1, 1, 1,
+    1, 0, 1, 3,
 
     1, 0, 0, 0,
-    1, 1, 1, 3,
-    1, 1, 0, 2,
+    1, 1, 0, 3,
+    1, 1, 1, 2,
 
     // Bottom face
     0, 0, 0, 0,
-    0, 0, 1, 2,
-    1, 0, 1, 3,
+    1, 0, 1, 2,
+    0, 0, 1, 3,
 
     0, 0, 0, 0,
-    1, 0, 1, 3,
-    1, 0, 0, 1,
+    1, 0, 0, 3,
+    1, 0, 1, 1,
 
     // Top face
     0, 1, 0, 0,
-    1, 1, 0, 1,
-    1, 1, 1, 3,
+    1, 1, 1, 1,
+    1, 1, 0, 3,
 
     0, 1, 0, 0,
-    1, 1, 1, 3,
-    0, 1, 1, 2,
+    0, 1, 1, 3,
+    1, 1, 1, 2,
 
     // Back face
     0, 0, 0, 0,
-    1, 0, 0, 1,
-    1, 1, 0, 3,
+    1, 1, 0, 1,
+    1, 0, 0, 3,
 
     0, 0, 0, 0,
-    1, 1, 0, 3,
-    0, 1, 0, 2,
+    0, 1, 0, 3,
+    1, 1, 0, 2,
 
     // Front face
     0, 0, 1, 0,
-    0, 1, 1, 2,
-    1, 1, 1, 3,
+    1, 1, 1, 2,
+    0, 1, 1, 3,
 
     0, 0, 1, 0,
-    1, 1, 1, 3,
-    1, 0, 1, 1
+    1, 0, 1, 3,
+    1, 1, 1, 1
 ];
 
 export class Chunk {
@@ -97,17 +102,18 @@ export class Chunk {
         noise.SetFractalType(FastNoiseLite.FractalType.FBm);
         noise.SetFractalOctaves(6);
 
-        this.blocks.fill(0);
+        this.blocks.fill(BlockType.AIR);
         for (let x = 0; x < CHUNK_SIZE; ++x) {
             for (let z = 0; z < CHUNK_SIZE; ++z) {
                 const noiseValue = noise.GetNoise(this.chunkX*CHUNK_SIZE + x,this.chunkZ * CHUNK_SIZE + z);
                 const height = (noiseValue+1)/2 * CHUNK_SIZE*4;
                 let localHeight = height - this.chunkY*CHUNK_SIZE;
                 if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
-                if (localHeight < 0)    localHeight = 0;
+                if (localHeight < 0)    localHeight = BlockType.AIR;
 
                 for (let y = 0; y < localHeight; ++y) {
-                    this.blocks[this.idx(x, y, z)] = 1;
+                    if (y + this.chunkY * CHUNK_SIZE >= height - 1)   this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
+                    else   this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
                 }
             }
         }
@@ -119,14 +125,16 @@ export class Chunk {
         for (let x = 0; x < CHUNK_SIZE; ++x) {
             for (let y = 0; y < CHUNK_SIZE; ++y) {
                 for (let z = 0; z < CHUNK_SIZE; ++z) {
-                    if (this.blocks[this.idx(x, y, z)] == 0)    continue;
-                    
-                    if (!this.solidBlock(x-1, y, z))   this.addFace(x, y, z, 0);
-                    if (!this.solidBlock(x+1, y, z))   this.addFace(x, y, z, 1);
-                    if (!this.solidBlock(x, y-1, z))   this.addFace(x, y, z, 2);
-                    if (!this.solidBlock(x, y+1, z))   this.addFace(x, y, z, 3);
-                    if (!this.solidBlock(x, y, z-1))   this.addFace(x, y, z, 4);
-                    if (!this.solidBlock(x, y, z+1))   this.addFace(x, y, z, 5);
+                    if (this.blocks[this.idx(x, y, z)] == BlockType.AIR)    continue;
+
+                    const blockType = this.blocks[this.idx(x, y, z)];
+
+                    if (!this.solidBlock(x-1, y, z))   this.addFace(x, y, z, 0, blockType);
+                    if (!this.solidBlock(x+1, y, z))   this.addFace(x, y, z, 1, blockType);
+                    if (!this.solidBlock(x, y-1, z))   this.addFace(x, y, z, 2, blockType);
+                    if (!this.solidBlock(x, y+1, z))   this.addFace(x, y, z, 3, blockType);
+                    if (!this.solidBlock(x, y, z-1))   this.addFace(x, y, z, 4, blockType);
+                    if (!this.solidBlock(x, y, z+1))   this.addFace(x, y, z, 5, blockType);
                 }
             }
         }
@@ -179,30 +187,31 @@ export class Chunk {
     }
 
     solidBlock(x, y, z) {
-        return this.getBlock(x, y, z) != 0;
+        return this.getBlock(x, y, z) != BlockType.AIR;
     }
 
-    packVertex(x, y, z, normalIndex) {
+    packVertex(x, y, z, normalIndex, blockType) {
         return (
             (x & 31) |
             ((y & 31) << 5) |
             ((z & 31) << 10) |
-            ((normalIndex & 7) << 15)
+            ((normalIndex & 7) << 15) |
+            ((blockType & 15) << 18)
         ) >>> 0;
     }
 
-    addFace(x, y, z, normalIndex) {
+    addFace(x, y, z, normalIndex, blockType) {
         const base = normalIndex * 24;
         for (let i = 0; i < 6; ++i) {
             const lx = faces[base+i*4+0] + x;
             const ly = faces[base+i*4+1] + y;
             const lz = faces[base+i*4+2] + z;
-            this.vertices.push(this.packVertex(lx, ly, lz, normalIndex));
+            this.vertices.push(this.packVertex(lx, ly, lz, normalIndex, blockType));
         }
     }
 
     getLocalBlock(x, y, z) {
-        if (!this.inBounds(x, y, z)) { return 0; }
+        if (!this.inBounds(x, y, z)) { return BlockType.AIR; }
         
         return this.blocks[this.idx(x, y, z)];
     }

@@ -4,6 +4,10 @@ precision highp float;
 out vec4 FragColor;
 
 flat in uint NormalIndex;
+flat in uint BlockType;
+in vec3 LocalPos;
+
+uniform sampler2D uAtlas;
 
 vec3 normals[6] = vec3[6](
     vec3(-1.0, 0.0, 0.0),
@@ -14,7 +18,35 @@ vec3 normals[6] = vec3[6](
     vec3(0.0, 0.0, 1.0)
 );
 
+vec3 getBlockColor(uint i) {
+    if (i == 1u) return vec3(0.3, 0.5, 0.2);
+    
+    return vec3(0.5, 0.2, 0.1);
+}
+
+vec2 getUV() {
+    vec2 UV;
+
+    if (NormalIndex == 0u || NormalIndex == 1u) {
+        UV = fract(LocalPos.zy);
+    } else if (NormalIndex == 2u || NormalIndex == 3u) {
+        UV = fract(LocalPos.xz);
+    } else {
+        UV = fract(LocalPos.xy);
+    }
+
+    return UV;
+}
+
+vec2 getTile() {
+    if (BlockType == 1u)    return vec2(0, 0);
+    else if (BlockType == 2u)    return vec2(1, 0);
+    return vec2(0, 0);
+}
+
 void main() {
+
+    // Lighting
     const vec3 lightDir = normalize(vec3(-0.2, 0.8, -0.3));
     const vec3 lightColor = vec3(1.0);
     const float ambientStrength = 0.6;
@@ -25,8 +57,21 @@ void main() {
     vec3 ambient = ambientStrength * lightColor;
     vec3 diffuse = diff * lightColor;
 
-    vec3 objectColor = vec3(0.3, 0.5, 0.2);
 
+    // Object color
+    const float TILE_SIZE = 1.0 / 7.0;
+
+    vec2 UV = getUV();
+
+    vec2 tile = getTile();
+    vec2 normalizedTile = tile * TILE_SIZE;
+
+    vec2 localUV = normalizedTile + UV * TILE_SIZE;
+
+    vec3 objectColor = texture(uAtlas, localUV).rgb;
+
+
+    // Output color
     vec3 finalColor = (ambient + diffuse) * objectColor;
 
     FragColor = vec4(finalColor, 1.0);
