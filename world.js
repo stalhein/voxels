@@ -23,9 +23,9 @@ export class World {
         this.textureAtlas = new Texture(this.gl, "assets/atlas.png");
         await this.textureAtlas.load();
 
-        for (let x = 0; x < 1; ++x) {
-            for (let y = 0; y < 1; ++y) {
-                for (let z = 0; z < 1; ++z) {
+        for (let x = 0; x < 16; ++x) {
+            for (let y = 0; y < 4; ++y) {
+                for (let z = 0; z < 16; ++z) {
                     const chunk = new Chunk(this.gl, this, x, y, z);   
                     await chunk.init();
                     this.chunks.set(this.getChunkKey(x, y, z), chunk);               
