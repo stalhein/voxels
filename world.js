@@ -1,4 +1,4 @@
-import {mat4} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
+import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
 import {Chunk} from "./chunk.js";
 import {Shader} from "./shader.js";
 import {CHUNK_SIZE} from "./constants.js";
@@ -14,6 +14,8 @@ export class World {
         this.textureAtlas = null;
 
         this.chunks = new Map();
+
+        this.oldPlayerChunk = vec3.create();
     }
 
     async init() {
@@ -23,18 +25,10 @@ export class World {
         this.textureAtlas = new Texture(this.gl, "assets/atlas.png");
         await this.textureAtlas.load();
 
-        for (let x = 0; x < 16; ++x) {
-            for (let y = 0; y < 4; ++y) {
-                for (let z = 0; z < 16; ++z) {
-                    const chunk = new Chunk(this.gl, this, x, y, z);   
-                    await chunk.init();
-                    this.chunks.set(this.getChunkKey(x, y, z), chunk);               
-                }
-            }
-        }
+        this.oldPlayerChunk = [1000, 100000, 10000];
     }
 
-    update(width, height) {
+    update(width, height, playerPos) {
         mat4.perspective(
             this.projection,
             Math.PI / 3,
@@ -43,8 +37,51 @@ export class World {
             1000.0
         );
 
+        const cx = Math.floor(playerPos[0]/CHUNK_SIZE);
+        const cz = Math.floor(playerPos[2]/CHUNK_SIZE);
+
+        const RENDER_RADIUS = 16;
+
+        if (cx != this.oldPlayerChunk[0] || cz != this.oldPlayerChunk[2]) {
+            this.oldPlayerChunk[0] = cx;
+            this.oldPlayerChunk[2] = cz;
+
+            for (let x = cx-RENDER_RADIUS; x <= cx+RENDER_RADIUS; ++x) {
+                for (let z = cz-RENDER_RADIUS; z <= cz+RENDER_RADIUS; ++z) {
+                    const dx = x - cx;
+                    const dz = z - cz;
+                    if (dx * dx + dz * dz <= RENDER_RADIUS * RENDER_RADIUS) {
+                        for (let y = 0; y < 4; ++y) {
+                            if (this.getChunkAt(x, y, z))   continue;
+                            this.addChunkAt(x, y, z);
+                        }
+                    }
+                }
+            }
+
+            for (const [key, chunk] of this.chunks) {
+                const dx = chunk.chunkX - cx;
+                const dz = chunk.chunkZ - cz;
+                if (dx * dx + dz * dz > RENDER_RADIUS * RENDER_RADIUS) {
+                    if (chunk.vao)  this.gl.deleteVertexArray(chunk.vao);
+                    if (chunk.vbo)  this.gl.deleteBuffer(chunk.vbo);
+                    this.chunks.delete(key);
+                }
+            }
+        }
+
+        const MAX_JOBS = 8;
+
+        let jobs = 0;
         for (const chunk of this.chunks.values()) {
-            if (chunk.dirty) chunk.generateMesh();
+            if (chunk.dirty) {
+                jobs++;
+                chunk.generateMesh();
+            }
+            if (jobs >= MAX_JOBS)   break;
+        }
+
+        for (const chunk of this.chunks.values()) {
             if (chunk.needsUploading)   chunk.uploadMesh();
         }
     }
@@ -66,6 +103,26 @@ export class World {
 
     getChunkKey(x, y, z) {
         return `${x},${y},${z}`;
+    }
+
+    addChunkAt(x, y, z) {
+        const chunk = new Chunk(this.gl, this, x, y, z);
+        chunk.init();
+        this.chunks.set(this.getChunkKey(x, y, z), chunk);
+
+        const NEIGHBOURS = [
+            [-1, 0, 0],
+            [1, 0, 0],
+            [0, -1, 0],
+            [0, 1, 0],
+            [0, 0, -1],
+            [0, 0, 1]
+        ];
+
+        for (const n of NEIGHBOURS) {
+            const chunk = this.getChunkAt(x + n[0], y + n[1], z + n[2]);
+            if (chunk)  chunk.dirty = true;
+        }
     }
 
     getChunkAt(x, y, z) {

@@ -124,7 +124,7 @@ export class Chunk {
         this.dirty = true;
     }
 
-    generateMesh() {
+    async generateMesh() {
         const AXIS = [
             {axis: 0, direction: -1, normal: 0},
             {axis: 0, direction:  1, normal: 1},
@@ -151,7 +151,7 @@ export class Chunk {
                         const [x, y, z] = getCoordOrder(axis, u, v, d);
                         const [nx, ny, nz] = getCoordOrder(axis, u, v, d + direction);
 
-                        const a = this.getBlock(x, y, z);
+                        const a = this.getLocalBlock(x, y, z);
                         const b = this.getBlock(nx, ny, nz);
 
                         if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;

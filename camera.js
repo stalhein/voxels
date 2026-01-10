@@ -5,7 +5,7 @@ export class Camera {
         this.position = vec3.fromValues(0, 10, 10);
         this.pitch = 0;
         this.yaw = Math.PI;
-        this.speed = 30;
+        this.speed = 20;
         this.sensitivity =  0.004;
 
         this.keys = {};
