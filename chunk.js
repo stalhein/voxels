@@ -38,7 +38,6 @@ export class Chunk {
     async init() {
         mat4.translate(this.model, this.model, vec3.fromValues(this.chunkX*CHUNK_SIZE, this.chunkY*CHUNK_SIZE, this.chunkZ*CHUNK_SIZE));
 
-        this.generateHeights();
         this.generateTerrain();
     }
 
@@ -66,7 +65,7 @@ export class Chunk {
                 for (let y = 0; y < localHeight; ++y) {
                     const realY = y + this.chunkY * CHUNK_SIZE;
 
-                    if (this.world.biomeNoise.GetNoise(x + this.chunkX * CHUNK_SIZE, z + this.chunkZ * CHUNK_SIZE) >= 0.5)  this.blocks[this.idx(x, y, z)] = BlockType.STONE;
+                    if (this.world.biomeNoise.GetNoise(x + this.chunkX * CHUNK_SIZE, z + this.chunkZ * CHUNK_SIZE) >= 0.3)  this.blocks[this.idx(x, y, z)] = BlockType.STONE;
                     else    this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
                     /*if (realY >= height - 1)   this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
                     else if (realY >= height - 2)   this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
@@ -84,19 +83,12 @@ export class Chunk {
 
         const selectorValue = (this.world.biomeNoise.GetNoise(wx, wz) + 1) * 0.5;
 
-        const islandsHeight = this.getIslandsHeight(wx, wz);
         const plainsHeight = this.getPlainsHeight(wx, wz);
         const mountainsHeight = this.getMountainsHeight(wx, wz);
 
         const smoothStep = selectorValue * selectorValue * (3 - 2 * selectorValue);
 
         return plainsHeight + (mountainsHeight - plainsHeight) * smoothStep;
-    }
-
-    getIslandsHeight(wx, wz) {
-        const noiseValue = (this.world.terrainNoise.GetNoise(wx, wz) + 1) * 0.5;
-
-        return 2 + noiseValue * 14;
     }
 
     getPlainsHeight(wx, wz) {
@@ -113,6 +105,15 @@ export class Chunk {
     }
 
     async generateMesh() {
+        const neighbors = {
+            nx: this.world.getChunkAt(this.chunkX-1, this.chunkY, this.chunkZ),
+            px: this.world.getChunkAt(this.chunkX+1, this.chunkY, this.chunkZ),
+            ny: this.world.getChunkAt(this.chunkX, this.chunkY-1, this.chunkZ),
+            py: this.world.getChunkAt(this.chunkX, this.chunkY+1, this.chunkZ),
+            nz: this.world.getChunkAt(this.chunkX, this.chunkY, this.chunkZ-1),
+            pz: this.world.getChunkAt(this.chunkX, this.chunkY, this.chunkZ+1)
+        };
+
         const AXIS = [
             {axis: 0, direction: -1, normal: 0},
             {axis: 0, direction:  1, normal: 1},
@@ -140,7 +141,7 @@ export class Chunk {
                         const [nx, ny, nz] = getCoordOrder(axis, u, v, d + direction);
 
                         const a = this.getLocalBlock(x, y, z);
-                        const b = this.getBlock(nx, ny, nz);
+                        const b = this.getBlock(nx, ny, nz, neighbors);
 
                         if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
                     }
@@ -296,7 +297,33 @@ export class Chunk {
         return this.blocks[this.idx(x, y, z)];
     }
 
-    getBlock(x, y, z) {
-        return this.world.getBlockAtWorld(this.chunkX * CHUNK_SIZE + x, this.chunkY * CHUNK_SIZE + y, this.chunkZ * CHUNK_SIZE + z);
+    getBlock(x, y, z, neighbors) {
+        if (this.inBounds(x, y, z)) return this.getLocalBlock(x, y, z);
+        
+        if (x < 0) {
+            const c = neighbors.nx;
+            return c ? c.getLocalBlock(x+CHUNK_SIZE, y, z) : BlockType.STONE;
+        }
+        if (y < 0) {
+            const c = neighbors.ny;
+            return c ? c.getLocalBlock(x, y+CHUNK_SIZE, z) : BlockType.STONE;
+        }
+        if (z < 0) {
+            const c = neighbors.nz;
+            return c ? c.getLocalBlock(x, y, z+CHUNK_SIZE) : BlockType.STONE;
+        }
+
+        if (x >= CHUNK_SIZE) {
+            const c = neighbors.px;
+            return c ? c.getLocalBlock(x-CHUNK_SIZE, y, z) : BlockType.STONE;
+        }
+        if (y >= CHUNK_SIZE) {
+            const c = neighbors.py;
+            return c ? c.getLocalBlock(x, y-CHUNK_SIZE, z) : BlockType.STONE;
+        }
+        if (z >= CHUNK_SIZE) {
+            const c = neighbors.pz;
+            return c ? c.getLocalBlock(x, y, z-CHUNK_SIZE) : BlockType.STONE;
+        }
     }
 }

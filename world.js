@@ -60,15 +60,15 @@ export class World {
         const cx = Math.floor(playerPos[0]/CHUNK_SIZE);
         const cz = Math.floor(playerPos[2]/CHUNK_SIZE);
 
-        const RENDER_RADIUS = 12;
+        const RENDER_RADIUS = 16;
         const RENDER_HEIGHT = 8;
 
         if (cx != this.oldPlayerChunk[0] || cz != this.oldPlayerChunk[2]) {
             this.oldPlayerChunk[0] = cx;
             this.oldPlayerChunk[2] = cz;
 
-            console.log(this.biomeNoise.GetNoise(playerPos[0], playerPos[1]));
-
+            let time = 0;
+            let counter = 0;
             for (let x = cx-RENDER_RADIUS; x <= cx+RENDER_RADIUS; ++x) {
                 for (let z = cz-RENDER_RADIUS; z <= cz+RENDER_RADIUS; ++z) {
                     const dx = x - cx;
@@ -76,11 +76,16 @@ export class World {
                     if (dx * dx + dz * dz <= RENDER_RADIUS * RENDER_RADIUS) {
                         for (let y = 0; y < RENDER_HEIGHT; ++y) {
                             if (this.getChunkAt(x, y, z))   continue;
+                            const beforeTime = performance.now();
                             this.addChunkAt(x, y, z);
+                            time += performance.now() - beforeTime;
+                            counter++;
                         }
                     }
                 }
             }
+            console.log(time / counter);
+            console.log(counter, "many");
 
             for (const [key, chunk] of this.chunks) {
                 const dx = chunk.chunkX - cx;
@@ -95,14 +100,18 @@ export class World {
 
         const MAX_JOBS = 8;
 
+        let time = 0;
         let jobs = 0;
         for (const chunk of this.chunks.values()) {
             if (chunk.dirty) {
                 jobs++;
+                const beforeTime = performance.now();
                 chunk.generateMesh();
+                time += performance.now() - beforeTime;
             }
             if (jobs >= MAX_JOBS)   break;
         }
+        console.log(time / jobs)
 
         for (const chunk of this.chunks.values()) {
             if (chunk.needsUploading)   chunk.uploadMesh();
