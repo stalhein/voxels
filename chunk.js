@@ -3,7 +3,7 @@ import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
 
-const BlockType = {
+export const BlockType = {
     AIR: 0,
     GRASS: 1,
     DIRT: 2,
@@ -20,8 +20,10 @@ export class Chunk {
 
         this.model = mat4.create();
 
+        this.needsTerraining = false;
         this.dirty = false;
         this.needsUploading = false;
+        this.meshing = false;
 
         this.world = world;
 
@@ -74,6 +76,7 @@ export class Chunk {
             }
         }
 
+        this.needsTerraining = false;
         this.dirty = true;
     }
 
@@ -102,91 +105,6 @@ export class Chunk {
         noiseValue = Math.pow(noiseValue, 1.3);
 
         return 16 + noiseValue * 96;
-    }
-
-    async generateMesh() {
-        const neighbors = {
-            nx: this.world.getChunkAt(this.chunkX-1, this.chunkY, this.chunkZ),
-            px: this.world.getChunkAt(this.chunkX+1, this.chunkY, this.chunkZ),
-            ny: this.world.getChunkAt(this.chunkX, this.chunkY-1, this.chunkZ),
-            py: this.world.getChunkAt(this.chunkX, this.chunkY+1, this.chunkZ),
-            nz: this.world.getChunkAt(this.chunkX, this.chunkY, this.chunkZ-1),
-            pz: this.world.getChunkAt(this.chunkX, this.chunkY, this.chunkZ+1)
-        };
-
-        const AXIS = [
-            {axis: 0, direction: -1, normal: 0},
-            {axis: 0, direction:  1, normal: 1},
-            {axis: 1, direction: -1, normal: 2},
-            {axis: 1, direction:  1, normal: 3},
-            {axis: 2, direction: -1, normal: 4},
-            {axis: 2, direction:  1, normal: 5},
-        ];
-
-        function getCoordOrder(axis, u, v, d) {
-            if (axis == 0)  return [d, u, v];
-            if (axis == 1)  return [u, d, v];
-            return [u, v, d];
-        }
-
-        const mask = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
-        for (const {axis, direction, normal} of AXIS) {
-            for (let d = 0; d < CHUNK_SIZE; ++d) {
-                // Fill mask
-                mask.fill(0);
-
-                for (let u = 0; u < CHUNK_SIZE; ++u) {
-                    for (let v = 0; v < CHUNK_SIZE; ++v) {
-                        const [x, y, z] = getCoordOrder(axis, u, v, d);
-                        const [nx, ny, nz] = getCoordOrder(axis, u, v, d + direction);
-
-                        const a = this.getLocalBlock(x, y, z);
-                        const b = this.getBlock(nx, ny, nz, neighbors);
-
-                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
-                    }
-                }
-
-                // Create mesh
-                for (let u = 0; u < CHUNK_SIZE; ++u) {
-                    for (let v = 0; v < CHUNK_SIZE;) {
-                        const blockType = mask[u * CHUNK_SIZE + v];
-                        if (blockType == BlockType.AIR) {
-                            v++;
-                            continue;
-                        }
-
-                        // Expand width
-                        let w = 1;
-                        while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
-
-                        // Expand height
-                        let h = 1;
-                        outer:
-                        while (u + h < CHUNK_SIZE) {
-                            for (let k = 0; k < w; ++k) {
-                                if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
-                            }
-                            h++;
-                        }
-
-                        this.addQuad(axis, direction, normal, d, u, v, w, h, blockType);
-
-                        for (let du = 0; du < h; ++du) {
-                            for (let dv = 0; dv < w; ++dv) {
-                                mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
-                            }
-                        }
-
-                        v += w;
-                    }
-                }
-            }
-        }
-        
-
-        this.dirty = false;
-        this.needsUploading = true;
     }
 
     uploadMesh() {
@@ -245,50 +163,6 @@ export class Chunk {
             ((normalIndex & 7) << 15) |
             ((blockType & 15) << 18)
         ) >>> 0;
-    }
-
-    addFace(x, y, z, normalIndex, blockType) {
-        const base = normalIndex * 24;
-        for (let i = 0; i < 6; ++i) {
-            const lx = faces[base+i*4+0] + x;
-            const ly = faces[base+i*4+1] + y;
-            const lz = faces[base+i*4+2] + z;
-            this.vertices.push(this.packVertex(lx, ly, lz, normalIndex, blockType));
-        }
-    }
-
-    addQuad(axis, direction, normal, d, u, v, w, h, blockType) {
-        let x = 0, y = 0, z = 0;
-        let ux = 0, uy = 0, uz = 0;
-        let vx = 0, vy = 0, vz = 0;
-
-        if (axis == 0) {
-            x = d + (direction == 1);
-            y = u;
-            z = v;
-            uy = h;
-            vz = w;
-        } else if (axis == 1) {
-            x = u;
-            y = d + (direction == 1);
-            z = v;
-            ux = h;
-            vz = w;
-        } else {
-            x = u;
-            y = v;
-            z = d + (direction == 1);
-            ux = h;
-            vy = w;
-        }
-
-        const v0 = this.packVertex(x, y, z, normal, blockType);
-        const v1 = this.packVertex(x + ux, y + uy, z + uz, normal, blockType);
-        const v2 = this.packVertex(x + ux + vx, y + uy + vy, z + uz + vz, normal, blockType);
-        const v3 = this.packVertex(x + vx, y + vy, z + vz, normal, blockType);
-
-        if (direction == 1)    this.vertices.push(v0, v1, v2, v0, v2, v3);
-        else    this.vertices.push(v0, v2, v1, v0, v3, v2);
     }
 
     getLocalBlock(x, y, z) {

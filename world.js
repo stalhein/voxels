@@ -27,6 +27,8 @@ export class World {
 
         this.biomeNoise = new FastNoiseLite();
         this.terrainNoise = new FastNoiseLite();
+
+        this.meshWorker = null;
     }
 
     async init() {
@@ -46,6 +48,19 @@ export class World {
         this.terrainNoise.SetFrequency(0.008);
         this.terrainNoise.SetFractalType(FastNoiseLite.FractalType.FBm);
         this.terrainNoise.SetFractalOctaves(4);
+
+        this.meshWorker = new Worker("./mesher.js", {type: "module"});
+
+        this.meshWorker.onmessage = (e) => {
+            const {key, vertices} = e.data;
+            const chunk = this.chunks.get(key);
+            if (!chunk) return;
+
+            chunk.vertices = vertices;
+            chunk.dirty = false;
+            chunk.needsUploading = true;
+            chunk.meshing = false;
+        }
     }
 
     update(width, height, playerPos) {
@@ -67,8 +82,6 @@ export class World {
             this.oldPlayerChunk[0] = cx;
             this.oldPlayerChunk[2] = cz;
 
-            let time = 0;
-            let counter = 0;
             for (let x = cx-RENDER_RADIUS; x <= cx+RENDER_RADIUS; ++x) {
                 for (let z = cz-RENDER_RADIUS; z <= cz+RENDER_RADIUS; ++z) {
                     const dx = x - cx;
@@ -76,16 +89,11 @@ export class World {
                     if (dx * dx + dz * dz <= RENDER_RADIUS * RENDER_RADIUS) {
                         for (let y = 0; y < RENDER_HEIGHT; ++y) {
                             if (this.getChunkAt(x, y, z))   continue;
-                            const beforeTime = performance.now();
                             this.addChunkAt(x, y, z);
-                            time += performance.now() - beforeTime;
-                            counter++;
                         }
                     }
                 }
             }
-            console.log(time / counter);
-            console.log(counter, "many");
 
             for (const [key, chunk] of this.chunks) {
                 const dx = chunk.chunkX - cx;
@@ -98,20 +106,23 @@ export class World {
             }
         }
 
-        const MAX_JOBS = 8;
-
-        let time = 0;
-        let jobs = 0;
         for (const chunk of this.chunks.values()) {
-            if (chunk.dirty) {
-                jobs++;
-                const beforeTime = performance.now();
-                chunk.generateMesh();
-                time += performance.now() - beforeTime;
+            if (chunk.needsTerraining) {
+                chunk.generateTerrain();
             }
-            if (jobs >= MAX_JOBS)   break;
+
+            if (chunk.dirty && !chunk.meshing) {
+                chunk.meshing = true;
+                
+                this.meshWorker.postMessage(
+                    {
+                        key: this.getChunkKey(chunk.chunkX, chunk.chunkY, chunk.chunkZ),
+                        blocks: chunk.blocks,
+                        neighbors: this.getNeighborBlocks(chunk)
+                    }
+                );
+            }
         }
-        console.log(time / jobs)
 
         for (const chunk of this.chunks.values()) {
             if (chunk.needsUploading)   chunk.uploadMesh();
@@ -153,7 +164,7 @@ export class World {
 
         for (const n of NEIGHBOURS) {
             const chunk = this.getChunkAt(x + n[0], y + n[1], z + n[2]);
-            if (chunk)  chunk.dirty = true;
+            if (chunk)  {chunk.dirty = true; chunk.meshing = false;}
         }
     }
 
@@ -179,6 +190,19 @@ export class World {
         const localY = y - chunkY * CHUNK_SIZE;
         const localZ = z - chunkZ * CHUNK_SIZE;
 
-        return chunk == null || chunk.getLocalBlock(localX, localY, localZ);
+        return chunk || chunk.getLocalBlock(localX, localY, localZ);
+    }
+
+    getNeighborBlocks(chunk) {
+        const neighbors = {
+            nx: this.getChunkAt(chunk.chunkX-1, chunk.chunkY, chunk.chunkZ)?.blocks,
+            px: this.getChunkAt(chunk.chunkX+1, chunk.chunkY, chunk.chunkZ)?.blocks,
+            ny: this.getChunkAt(chunk.chunkX, chunk.chunkY-1, chunk.chunkZ)?.blocks,
+            py: this.getChunkAt(chunk.chunkX, chunk.chunkY+1, chunk.chunkZ)?.blocks,
+            nz: this.getChunkAt(chunk.chunkX, chunk.chunkY, chunk.chunkZ-1)?.blocks,
+            pz: this.getChunkAt(chunk.chunkX, chunk.chunkY, chunk.chunkZ+1)?.blocks
+        };
+
+        return neighbors;
     }
 }
