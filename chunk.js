@@ -1,6 +1,5 @@
 import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
-import FastNoiseLite from "./FastNoiseLite.js";
-import {Worley} from "./worley.js";
+import {BiomeData, BiomeType} from "./world.js";
 
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
@@ -11,23 +10,6 @@ const BlockType = {
     DIRT: 2,
     STONE: 3
 };
-
-const Biomes = [
-    {
-        name: "grass",
-        id: 0,
-        baseHeight: 0,
-        amplitude: 10,
-        blockTop: BlockType.GRASS
-    },
-    {
-        name: "stone_mountain",
-        id: 1,
-        baseHeight: 20,
-        amplitude: CHUNK_SIZE*2,
-        blockTop: BlockType.STONE
-    }
-];
 
 export class Chunk {
     constructor(gl, world, x, y, z) {
@@ -51,20 +33,32 @@ export class Chunk {
 
         this.vertices = [];
 
-        this.worley = null;
+        this.heightMap = new Int8Array(CHUNK_SIZE * CHUNK_SIZE);
     }
 
     async init() {
         mat4.translate(this.model, this.model, vec3.fromValues(this.chunkX*CHUNK_SIZE, this.chunkY*CHUNK_SIZE, this.chunkZ*CHUNK_SIZE));
 
+        this.generateHeights();
         this.generateTerrain();
     }
 
-    generateTerrain() {
-        this.blocks.fill(BlockType.AIR);
+    generateHeights() {
         for (let x = 0; x < CHUNK_SIZE; ++x) {
             for (let z = 0; z < CHUNK_SIZE; ++z) {
                 const height = this.getHeight(x, z);
+                this.heightMap[x * CHUNK_SIZE + z] = height;
+            }
+        }
+    }
+
+    generateTerrain() {
+        this.generateHeights();
+
+        this.blocks.fill(BlockType.AIR);
+        for (let x = 0; x < CHUNK_SIZE; ++x) {
+            for (let z = 0; z < CHUNK_SIZE; ++z) {
+                const height = this.heightMap[x * CHUNK_SIZE + z];
                 
                 let localHeight = height - this.chunkY*CHUNK_SIZE;
                 if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
@@ -83,19 +77,49 @@ export class Chunk {
     }
 
     getHeight(x, z) {
+        let sum = 0;
+        let weight = 0;
+
+        for (let dx = -2; dx <= 2; ++dx) {
+            for (let dz = -1; dz <= 2; ++dz) {
+                const distance = Math.sqrt(dx*dx*dz*dz);
+                const w = Math.max(0, 1-distance/3);
+
+                const height = this.getBiomeHeight(x+dx, z+dz);
+
+                sum += height * w;
+                weight += w;
+            }
+        }
+
+        return sum/weight;
+        
+    }
+
+    getBiomeHeight(x, z) {
+        const world = this.world;
+
+
         const wx = x + this.chunkX * CHUNK_SIZE;
         const wz = z + this.chunkZ * CHUNK_SIZE;
 
-        let selectorValue = Math.pow(((this.world.selectorNoise.GetNoise(wx, wz)+1) * 0.5), 2.5);
-        let highValue = (this.world.highNoise.GetNoise(wx, wz)+1) * 0.5;
-        let lowValue = (this.world.lowNoise.GetNoise(wx, wz)+1) * 0.5;
+        const biome = world.getBiome(wx, wz);
+        const biomeData = BiomeData[biome];
 
-        let high = highValue * CHUNK_SIZE * 4;
-        let low = lowValue * CHUNK_SIZE * 2;
+        let baseShape;
 
-        const height = low + (high-low) * selectorValue;
+        if (biome == BiomeType.MOUNTAINS || biome == BiomeType.SNOW) {
+            let highValue = (world.highNoise.GetNoise(wx, wz)+1)*0.5;
+            highValue = 1.0 - Math.abs(highValue);
+            highValue = Math.pow(highValue, 3.0);
+            baseShape = highValue;
+        } else {
+            let lowValue = (world.lowNoise.GetNoise(wx, wz)+1)*0.5;
+            lowValue = Math.pow(lowValue, 1.3);
+            baseShape = lowValue;
+        }
 
-        return height;
+        return biomeData.base + baseShape * biomeData.amplitude;
     }
 
     async generateMesh() {
@@ -114,10 +138,10 @@ export class Chunk {
             return [u, v, d];
         }
 
+        const mask = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
         for (const {axis, direction, normal} of AXIS) {
             for (let d = 0; d < CHUNK_SIZE; ++d) {
                 // Fill mask
-                const mask = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
                 mask.fill(0);
 
                 for (let u = 0; u < CHUNK_SIZE; ++u) {

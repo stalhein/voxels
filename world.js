@@ -6,6 +6,26 @@ import FastNoiseLite from "./FastNoiseLite.js";
 
 const CHUNK_SIZE = 16;
 
+export const BiomeType = {
+    OCEAN: 0,
+    BEACH: 1,
+    PLAINS: 2,
+    FOREST: 3,
+    DESERT: 4,
+    MOUNTAINS: 5,
+    SNOW: 6
+};
+
+export const BiomeData = {
+    [BiomeType.OCEAN]: {base: 4, amplitude: 4},
+    [BiomeType.BEACH]: {base: 4, amplitude: 3},
+    [BiomeType.PLAINS]: {base: 4, amplitude: 8},
+    [BiomeType.FOREST]: {base: 4, amplitude: 12},
+    [BiomeType.DESERT]: {base: 4, amplitude: 6},
+    [BiomeType.MOUNTAINS]: {base: 4, amplitude: 45},
+    [BiomeType.SNOW]: {base: 4, amplitude: 55},
+}
+
 export class World {
     constructor(gl) {
         this.gl = gl;
@@ -22,6 +42,10 @@ export class World {
         this.continentalNoise = new FastNoiseLite();
         this.temperatureNoise = new FastNoiseLite();
         this.humidityNoise = new FastNoiseLite();
+
+        this.selectorNoise = new FastNoiseLite();
+        this.highNoise = new FastNoiseLite();
+        this.lowNoise = new FastNoiseLite();
     }
 
     async init() {
@@ -35,13 +59,23 @@ export class World {
         
 
         this.continentalNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        this.continentalNoise.SetFrequency(0.00015);
+        this.continentalNoise.SetFrequency(0.0015);
 
         this.temperatureNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        this.continentalNoise.SetFrequency(0.0003);
+        this.temperatureNoise.SetFrequency(0.003);
 
         this.humidityNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        this.continentalNoise.SetFrequency(0.0003);
+        this.humidityNoise.SetFrequency(0.003);
+
+
+        this.selectorNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        this.selectorNoise.SetFrequency(0.0002);
+
+        this.highNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        this.highNoise.SetFrequency(0.003);
+
+        this.lowNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        this.lowNoise.SetFrequency(0.0004);
     }
 
     update(width, height, playerPos) {
@@ -56,7 +90,7 @@ export class World {
         const cx = Math.floor(playerPos[0]/CHUNK_SIZE);
         const cz = Math.floor(playerPos[2]/CHUNK_SIZE);
 
-        const RENDER_RADIUS = 16;
+        const RENDER_RADIUS = 12;
 
         if (cx != this.oldPlayerChunk[0] || cz != this.oldPlayerChunk[2]) {
             this.oldPlayerChunk[0] = cx;
@@ -67,7 +101,7 @@ export class World {
                     const dx = x - cx;
                     const dz = z - cz;
                     if (dx * dx + dz * dz <= RENDER_RADIUS * RENDER_RADIUS) {
-                        for (let y = 0; y < 4; ++y) {
+                        for (let y = 0; y < 8; ++y) {
                             if (this.getChunkAt(x, y, z))   continue;
                             this.addChunkAt(x, y, z);
                         }
@@ -164,5 +198,28 @@ export class World {
         const localZ = z - chunkZ * CHUNK_SIZE;
 
         return chunk == null || chunk.getLocalBlock(localX, localY, localZ);
+    }
+
+    getBiome(wx, wz) {
+        let continentalValue = (this.continentalNoise.GetNoise(wx, wz) + 1) * 0.5;
+        let temperatureValue = (this.temperatureNoise.GetNoise(wx, wz) + 1) * 0.5;
+        let humidityValue = (this.humidityNoise.GetNoise(wx, wz) + 1) * 0.5;
+
+        if (continentalValue < 0.3) return BiomeType.OCEAN;
+        if (continentalValue < 0.4) return BiomeType.BEACH;
+
+        if (temperatureValue < 0.3) {
+            if (continentalValue > 0.7) return BiomeType.SNOW;
+            return BiomeType.MOUNTAINS;
+        }
+
+        if (temperatureValue > 0.4) {
+            if (humidityValue < 0.3) return BiomeType.DESERT;
+            return BiomeType.PLAINS;
+        }
+
+        if (humidityValue > 0.6) return BiomeType.FOREST;
+
+        return BiomeType.PLAINS;
     }
 }
