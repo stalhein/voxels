@@ -72,7 +72,7 @@ function generateMesh(blocks, neighbors) {
                         }
                         h++;
                     }
-                    console.log("hello");
+                    
                     addQuad(vertices, axis, direction, normal, d, u, v, w, h, blockType);
 
                     for (let du = 0; du < h; ++du) {

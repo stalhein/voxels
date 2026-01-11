@@ -22,6 +22,7 @@ export class World {
         this.textureAtlas = null;
 
         this.chunks = new Map();
+        this.activeChunks = new Set();
 
         this.oldPlayerChunk = vec3.create();
 
@@ -29,6 +30,8 @@ export class World {
         this.terrainNoise = new FastNoiseLite();
 
         this.meshWorker = null;
+
+        this.chunkCreationQueue = [];
     }
 
     async init() {
@@ -53,6 +56,8 @@ export class World {
 
         this.meshWorker.onmessage = (e) => {
             const {key, vertices} = e.data;
+            if (!this.activeChunks.has(key)) return;
+
             const chunk = this.chunks.get(key);
             if (!chunk) return;
 
@@ -88,8 +93,10 @@ export class World {
                     const dz = z - cz;
                     if (dx * dx + dz * dz <= RENDER_RADIUS * RENDER_RADIUS) {
                         for (let y = 0; y < RENDER_HEIGHT; ++y) {
-                            if (this.getChunkAt(x, y, z))   continue;
-                            this.addChunkAt(x, y, z);
+                            const key = this.getChunkKey(x, y, z);
+                            if (!this.activeChunks.has(key)) {
+                                this.chunkCreationQueue.push([x, y, z]);
+                            }
                         }
                     }
                 }
@@ -102,7 +109,20 @@ export class World {
                     if (chunk.vao)  this.gl.deleteVertexArray(chunk.vao);
                     if (chunk.vbo)  this.gl.deleteBuffer(chunk.vbo);
                     this.chunks.delete(key);
+                    this.activeChunks.delete(key);
                 }
+            }
+        }
+
+        const MAX_CREATION_JOBS = 12;
+        for (let i = 0; i < MAX_CREATION_JOBS && this.chunkCreationQueue.length; ++i) {
+            const [x, y, z] = this.chunkCreationQueue.shift();
+            const key = this.getChunkKey(x, y, z);
+            const dx = x - cx;
+            const dz = z - cz;
+            if (!this.activeChunks.has(key) && dx*dx+dz*dz <= RENDER_RADIUS*RENDER_RADIUS) {
+                this.addChunkAt(x, y, z);
+                this.activeChunks.add(key);
             }
         }
 
@@ -139,6 +159,7 @@ export class World {
         this.shader.setMat4("uView", view);
 
         for (const chunk of this.chunks.values()) {
+            if (!chunk.vao) continue;
             this.shader.setMat4("uModel", chunk.model);
             chunk.render();
         }
