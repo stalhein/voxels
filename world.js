@@ -1,8 +1,10 @@
 import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
 import {Chunk} from "./chunk.js";
 import {Shader} from "./shader.js";
-import {CHUNK_SIZE} from "./constants.js";
 import {Texture} from "./texture.js";
+import FastNoiseLite from "./FastNoiseLite.js";
+
+const CHUNK_SIZE = 16;
 
 export class World {
     constructor(gl) {
@@ -16,6 +18,10 @@ export class World {
         this.chunks = new Map();
 
         this.oldPlayerChunk = vec3.create();
+
+        this.continentalNoise = new FastNoiseLite();
+        this.temperatureNoise = new FastNoiseLite();
+        this.humidityNoise = new FastNoiseLite();
     }
 
     async init() {
@@ -26,6 +32,16 @@ export class World {
         await this.textureAtlas.load();
 
         this.oldPlayerChunk = [1000, 100000, 10000];
+        
+
+        this.continentalNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        this.continentalNoise.SetFrequency(0.00015);
+
+        this.temperatureNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        this.continentalNoise.SetFrequency(0.0003);
+
+        this.humidityNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        this.continentalNoise.SetFrequency(0.0003);
     }
 
     update(width, height, playerPos) {
@@ -40,7 +56,7 @@ export class World {
         const cx = Math.floor(playerPos[0]/CHUNK_SIZE);
         const cz = Math.floor(playerPos[2]/CHUNK_SIZE);
 
-        const RENDER_RADIUS = 8;
+        const RENDER_RADIUS = 16;
 
         if (cx != this.oldPlayerChunk[0] || cz != this.oldPlayerChunk[2]) {
             this.oldPlayerChunk[0] = cx;

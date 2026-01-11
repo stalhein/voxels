@@ -51,21 +51,11 @@ export class Chunk {
 
         this.vertices = [];
 
-
-        this.noise = new FastNoiseLite();
-
         this.worley = null;
     }
 
     async init() {
         mat4.translate(this.model, this.model, vec3.fromValues(this.chunkX*CHUNK_SIZE, this.chunkY*CHUNK_SIZE, this.chunkZ*CHUNK_SIZE));
-
-        this.noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        this.noise.SetFrequency(0.0067);
-        this.noise.SetFractalType(FastNoiseLite.FractalType.FBm);
-        this.noise.SetFractalOctaves(6);
-
-        this.worley = new Worley(12345);
 
         this.generateTerrain();
     }
@@ -96,35 +86,14 @@ export class Chunk {
         const wx = x + this.chunkX * CHUNK_SIZE;
         const wz = z + this.chunkZ * CHUNK_SIZE;
 
-        const biomes = this.worley.getBiomeAt(wx, wz);
+        let selectorValue = Math.pow(((this.world.selectorNoise.GetNoise(wx, wz)+1) * 0.5), 2.5);
+        let highValue = (this.world.highNoise.GetNoise(wx, wz)+1) * 0.5;
+        let lowValue = (this.world.lowNoise.GetNoise(wx, wz)+1) * 0.5;
 
-        const b0 = biomes[0];
-        const b1 = biomes[1];
+        let high = highValue * CHUNK_SIZE * 4;
+        let low = lowValue * CHUNK_SIZE * 2;
 
-        const d0 = Math.sqrt(b0.d);
-        const d1 = Math.sqrt(b1.d);
-
-        const blendSize = 100;
-        let factor = (d1-d0) / blendSize;
-        factor = Math.max(0, Math.min(1, factor));
-
-        const smoothFactor = factor*factor*(3-2*factor);
-        
-        const amplitude = biomes[b0.biome].amplitude * (1-smoothFactor) + biomes[b1.biome].amplitude * smoothFactor;
-
-        const noiseValue = (this.noise.GetNoise(x, z)+1) / 2;
-
-        const height = noiseValue * amplitude + 19;
-
-        return height;
-    }
-
-    getBiomeHeight(biomeIndex, x, z) {
-        const noiseValue = (this.noise.GetNoise(x, z)+1) / 2;
-
-        const biomeData = Biomes[biomeIndex];
-
-        const height = noiseValue * biomeData.amplitude + biomeData.baseHeight;
+        const height = low + (high-low) * selectorValue;
 
         return height;
     }
