@@ -29,9 +29,12 @@ export class World {
         this.biomeNoise = new FastNoiseLite();
         this.terrainNoise = new FastNoiseLite();
 
-        this.meshWorker = null;
+        this.meshWorkers = [];
+        this.freeWorkers = [];
+        this.MAX_MESH_JOBS = Math.max(6, navigator.hardwareConcurrency-1);
 
         this.chunkCreationQueue = [];
+        this.meshQueue = [];
     }
 
     async init() {
@@ -52,19 +55,40 @@ export class World {
         this.terrainNoise.SetFractalType(FastNoiseLite.FractalType.FBm);
         this.terrainNoise.SetFractalOctaves(4);
 
-        this.meshWorker = new Worker("./mesher.js", {type: "module"});
+        for (let i = 0; i < this.MAX_MESH_JOBS; ++i) {
+            const meshWorker = new Worker("./mesher.js", {type: "module"});
 
-        this.meshWorker.onmessage = (e) => {
-            const {key, vertices} = e.data;
-            if (!this.activeChunks.has(key)) return;
+            meshWorker.onmessage = (e) => {
+                try {
+                    const chunkData = e.data;
+                    if (!chunkData)  return;
 
-            const chunk = this.chunks.get(key);
-            if (!chunk) return;
+                    const {key, vertices} = chunkData;
+                    const chunk = this.chunks.get(key);
 
-            chunk.vertices = vertices;
-            chunk.dirty = false;
-            chunk.needsUploading = true;
-            chunk.meshing = false;
+                    if (chunk && this.activeChunks.has(key)) {
+                        chunk.vertices = vertices;
+                        chunk.dirty = false;
+                        chunk.needsUploading = true;
+                        chunk.meshing = false;
+                    }
+                } finally {
+                    this.freeWorkers.push(meshWorker);
+                    this.sendJobs();
+                }
+            }
+
+            this.meshWorkers.push(meshWorker);
+            this.freeWorkers.push(meshWorker);
+        }
+
+    }
+
+    sendJobs() {
+        while (this.freeWorkers.length > 0 && this.meshQueue.length > 0) {
+            const meshWorker = this.freeWorkers.pop();
+            const job = this.meshQueue.shift();
+            meshWorker.postMessage(job);
         }
     }
 
@@ -114,7 +138,16 @@ export class World {
             }
         }
 
-        const MAX_CREATION_JOBS = 12;
+        const MAX_CREATION_JOBS = 16;
+        this.chunkCreationQueue.sort((a, b) => {
+            const adx = cx - a[0];
+            const adz = cz - a[2];
+            const bdx = cx - b[0];
+            const bdz = cz - b[2];
+
+            return (adx*adx+adz*adz) - (bdx*bdx+bdz+bdz);
+            
+        });
         for (let i = 0; i < MAX_CREATION_JOBS && this.chunkCreationQueue.length; ++i) {
             const [x, y, z] = this.chunkCreationQueue.shift();
             const key = this.getChunkKey(x, y, z);
@@ -126,6 +159,15 @@ export class World {
             }
         }
 
+        this.meshQueue.sort((a, b) => {
+            const adx = cx - a.cx;
+            const adz = cz - a.cz;
+            const bdx = cx - b.cx;
+            const bdz = cz - b.cz;
+
+            return (adx*adx+adz*adz) - (bdx*bdx+bdz+bdz);
+            
+        });
         for (const chunk of this.chunks.values()) {
             if (chunk.needsTerraining) {
                 chunk.generateTerrain();
@@ -134,15 +176,16 @@ export class World {
             if (chunk.dirty && !chunk.meshing) {
                 chunk.meshing = true;
                 
-                this.meshWorker.postMessage(
-                    {
+                this.meshQueue.push({
                         key: this.getChunkKey(chunk.chunkX, chunk.chunkY, chunk.chunkZ),
+                        cx: chunk.chunkX,
+                        cz: chunk.chunkZ,
                         blocks: chunk.blocks,
                         neighbors: this.getNeighborBlocks(chunk)
-                    }
-                );
+                });
             }
         }
+        this.sendJobs();
 
         for (const chunk of this.chunks.values()) {
             if (chunk.needsUploading)   chunk.uploadMesh();
