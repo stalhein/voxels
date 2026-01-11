@@ -159,15 +159,6 @@ export class World {
             }
         }
 
-        this.meshQueue.sort((a, b) => {
-            const adx = cx - a.cx;
-            const adz = cz - a.cz;
-            const bdx = cx - b.cx;
-            const bdz = cz - b.cz;
-
-            return (adx*adx+adz*adz) - (bdx*bdx+bdz+bdz);
-            
-        });
         for (const chunk of this.chunks.values()) {
             if (chunk.needsTerraining) {
                 chunk.generateTerrain();
