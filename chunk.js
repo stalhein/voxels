@@ -1,5 +1,4 @@
 import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
-import {BiomeData, BiomeType} from "./world.js";
 
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
@@ -66,9 +65,12 @@ export class Chunk {
 
                 for (let y = 0; y < localHeight; ++y) {
                     const realY = y + this.chunkY * CHUNK_SIZE;
-                    if (realY >= height - 1)   this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
+
+                    if (this.world.biomeNoise.GetNoise(x + this.chunkX * CHUNK_SIZE, z + this.chunkZ * CHUNK_SIZE) >= 0.5)  this.blocks[this.idx(x, y, z)] = BlockType.STONE;
+                    else    this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
+                    /*if (realY >= height - 1)   this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
                     else if (realY >= height - 2)   this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
-                    else    this.blocks[this.idx(x, y, z)] = BlockType.STONE;
+                    else    this.blocks[this.idx(x, y, z)] = BlockType.STONE;*/
                 }
             }
         }
@@ -77,49 +79,37 @@ export class Chunk {
     }
 
     getHeight(x, z) {
-        let sum = 0;
-        let weight = 0;
-
-        for (let dx = -2; dx <= 2; ++dx) {
-            for (let dz = -1; dz <= 2; ++dz) {
-                const distance = Math.sqrt(dx*dx*dz*dz);
-                const w = Math.max(0, 1-distance/3);
-
-                const height = this.getBiomeHeight(x+dx, z+dz);
-
-                sum += height * w;
-                weight += w;
-            }
-        }
-
-        return sum/weight;
-        
-    }
-
-    getBiomeHeight(x, z) {
-        const world = this.world;
-
-
         const wx = x + this.chunkX * CHUNK_SIZE;
         const wz = z + this.chunkZ * CHUNK_SIZE;
 
-        const biome = world.getBiome(wx, wz);
-        const biomeData = BiomeData[biome];
+        const selectorValue = (this.world.biomeNoise.GetNoise(wx, wz) + 1) * 0.5;
 
-        let baseShape;
+        const islandsHeight = this.getIslandsHeight(wx, wz);
+        const plainsHeight = this.getPlainsHeight(wx, wz);
+        const mountainsHeight = this.getMountainsHeight(wx, wz);
 
-        if (biome == BiomeType.MOUNTAINS || biome == BiomeType.SNOW) {
-            let highValue = (world.highNoise.GetNoise(wx, wz)+1)*0.5;
-            highValue = 1.0 - Math.abs(highValue);
-            highValue = Math.pow(highValue, 3.0);
-            baseShape = highValue;
-        } else {
-            let lowValue = (world.lowNoise.GetNoise(wx, wz)+1)*0.5;
-            lowValue = Math.pow(lowValue, 1.3);
-            baseShape = lowValue;
-        }
+        const smoothStep = selectorValue * selectorValue * (3 - 2 * selectorValue);
 
-        return biomeData.base + baseShape * biomeData.amplitude;
+        return plainsHeight + (mountainsHeight - plainsHeight) * smoothStep;
+    }
+
+    getIslandsHeight(wx, wz) {
+        const noiseValue = (this.world.terrainNoise.GetNoise(wx, wz) + 1) * 0.5;
+
+        return 2 + noiseValue * 14;
+    }
+
+    getPlainsHeight(wx, wz) {
+        const noiseValue = (this.world.terrainNoise.GetNoise(wx*0.5, wz*0.5) + 1) * 0.5;
+
+        return 16 + noiseValue * 2;
+    }
+
+    getMountainsHeight(wx, wz) {
+        let noiseValue = (this.world.terrainNoise.GetNoise(wx*1.01, wz*1.01) + 1) * 0.5;
+        noiseValue = Math.pow(noiseValue, 1.3);
+
+        return 16 + noiseValue * 96;
     }
 
     async generateMesh() {
