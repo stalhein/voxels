@@ -11,8 +11,11 @@ export const BlockType = {
 };
 
 export class Chunk {
-    constructor(gl, world, x, y, z) {
+    constructor(gl, world, column, x, y, z) {
         this.gl = gl;
+
+        this.world = world;
+        this.column = column;
 
         this.chunkX = x;
         this.chunkY = y;
@@ -25,8 +28,6 @@ export class Chunk {
         this.needsUploading = false;
         this.meshing = false;
 
-        this.world = world;
-
         this.blocks = new Int8Array(CHUNK_VOLUME);
 
         this.vbo = null;
@@ -34,31 +35,19 @@ export class Chunk {
 
         this.vertices = [];
 
-        this.heightMap = new Int8Array(CHUNK_SIZE * CHUNK_SIZE);
+        this.heightMap = column.heightMap;
     }
 
     async init() {
         mat4.translate(this.model, this.model, vec3.fromValues(this.chunkX*CHUNK_SIZE, this.chunkY*CHUNK_SIZE, this.chunkZ*CHUNK_SIZE));
-
-        this.generateTerrain();
     }
 
-    generateHeights() {
-        for (let x = 0; x < CHUNK_SIZE; ++x) {
-            for (let z = 0; z < CHUNK_SIZE; ++z) {
-                const height = this.getHeight(x, z);
-                this.heightMap[x * CHUNK_SIZE + z] = height;
-            }
-        }
-    }
-
+    // Terrain stuff
     generateTerrain() {
-        this.generateHeights();
-
         this.blocks.fill(BlockType.AIR);
         for (let x = 0; x < CHUNK_SIZE; ++x) {
             for (let z = 0; z < CHUNK_SIZE; ++z) {
-                const height = this.heightMap[x * CHUNK_SIZE + z];
+                const height = this.column.heightMap[x * CHUNK_SIZE + z];
                 
                 let localHeight = height - this.chunkY*CHUNK_SIZE;
                 if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
@@ -67,11 +56,8 @@ export class Chunk {
                 for (let y = 0; y < localHeight; ++y) {
                     const realY = y + this.chunkY * CHUNK_SIZE;
 
-                    if (this.world.biomeNoise.GetNoise(x + this.chunkX * CHUNK_SIZE, z + this.chunkZ * CHUNK_SIZE) >= 0.3)  this.blocks[this.idx(x, y, z)] = BlockType.STONE;
+                    if (this.world.biomeNoise.GetNoise(x + this.chunkX * CHUNK_SIZE, z + this.chunkZ * CHUNK_SIZE) >= 0.2)  this.blocks[this.idx(x, y, z)] = BlockType.STONE;
                     else    this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
-                    /*if (realY >= height - 1)   this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
-                    else if (realY >= height - 2)   this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
-                    else    this.blocks[this.idx(x, y, z)] = BlockType.STONE;*/
                 }
             }
         }
@@ -80,31 +66,136 @@ export class Chunk {
         this.dirty = true;
     }
 
-    getHeight(x, z) {
-        const wx = x + this.chunkX * CHUNK_SIZE;
-        const wz = z + this.chunkZ * CHUNK_SIZE;
+    // Meshing
+    generateMesh() {
+        const AXIS = [
+            {axis: 0, direction: -1, normal: 0},
+            {axis: 0, direction:  1, normal: 1},
+            {axis: 1, direction: -1, normal: 2},
+            {axis: 1, direction:  1, normal: 3},
+            {axis: 2, direction: -1, normal: 4},
+            {axis: 2, direction:  1, normal: 5},
+        ];
 
-        const selectorValue = (this.world.biomeNoise.GetNoise(wx, wz) + 1) * 0.5;
+        function getCoordOrder(axis, u, v, d) {
+            if (axis == 0)  return [d, u, v];
+            if (axis == 1)  return [u, d, v];
+            return [u, v, d];
+        }
 
-        const plainsHeight = this.getPlainsHeight(wx, wz);
-        const mountainsHeight = this.getMountainsHeight(wx, wz);
+        const mask = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+        for (const {axis, direction, normal} of AXIS) {
+            for (let d = 0; d < CHUNK_SIZE; ++d) {
+                // Fill mask
+                mask.fill(0);
 
-        const smoothStep = selectorValue * selectorValue * (3 - 2 * selectorValue);
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE; ++v) {
+                        const [x, y, z] = getCoordOrder(axis, u, v, d);
+                        const [nx, ny, nz] = getCoordOrder(axis, u, v, d + direction);
 
-        return plainsHeight + (mountainsHeight - plainsHeight) * smoothStep;
+                        const a = this.getBlock(x, y, z);
+                        const b = this.getBlock(nx, ny, nz);
+
+                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                    }
+                }
+
+                // Create mesh
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE;) {
+                        const blockType = mask[u * CHUNK_SIZE + v];
+                        if (blockType == BlockType.AIR) {
+                            v++;
+                            continue;
+                        }
+
+                        // Expand width
+                        let w = 1;
+                        while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
+
+                        // Expand height
+                        let h = 1;
+                        outer:
+                        while (u + h < CHUNK_SIZE) {
+                            for (let k = 0; k < w; ++k) {
+                                if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
+                            }
+                            h++;
+                        }
+                        
+                        this.addQuad(axis, direction, normal, d, u, v, w, h, blockType);
+
+                        for (let du = 0; du < h; ++du) {
+                            for (let dv = 0; dv < w; ++dv) {
+                                mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
+                            }
+                        }
+
+                        v += w;
+                    }
+                }
+            }
+        }
     }
 
-    getPlainsHeight(wx, wz) {
-        const noiseValue = (this.world.terrainNoise.GetNoise(wx*0.5, wz*0.5) + 1) * 0.5;
-
-        return 16 + noiseValue * 2;
+    packVertex(x, y, z, normalIndex, blockType) {
+        return (
+            (x & 31) |
+            ((y & 31) << 5) |
+            ((z & 31) << 10) |
+            ((normalIndex & 7) << 15) |
+            ((blockType & 15) << 18)
+        ) >>> 0;
     }
 
-    getMountainsHeight(wx, wz) {
-        let noiseValue = (this.world.terrainNoise.GetNoise(wx*1.01, wz*1.01) + 1) * 0.5;
-        noiseValue = Math.pow(noiseValue, 1.3);
+    addQuad(axis, direction, normal, d, u, v, w, h, blockType) {
+        let x = 0, y = 0, z = 0;
+        let ux = 0, uy = 0, uz = 0;
+        let vx = 0, vy = 0, vz = 0;
 
-        return 16 + noiseValue * 96;
+        if (axis == 0) {
+            x = d + (direction == 1);
+            y = u;
+            z = v;
+            uy = h;
+            vz = w;
+        } else if (axis == 1) {
+            x = u;
+            y = d + (direction == 1);
+            z = v;
+            ux = h;
+            vz = w;
+        } else {
+            x = u;
+            y = v;
+            z = d + (direction == 1);
+            ux = h;
+            vy = w;
+        }
+
+        const v0 = this.packVertex(x, y, z, normal, blockType);
+        const v1 = this.packVertex(x + ux, y + uy, z + uz, normal, blockType);
+        const v2 = this.packVertex(x + ux + vx, y + uy + vy, z + uz + vz, normal, blockType);
+        const v3 = this.packVertex(x + vx, y + vy, z + vz, normal, blockType);
+
+        if (direction == 1)    this.vertices.push(v0, v1, v2, v0, v2, v3);
+        else    this.vertices.push(v0, v2, v1, v0, v3, v2);
+    }
+
+    // Helpers
+    idx(x, y, z) {
+        return x * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + z;
+    }
+
+    inBounds(x, y, z) {
+        return x >= 0 && y >= 0 && z >= 0 && x < CHUNK_SIZE && y < CHUNK_SIZE && z < CHUNK_SIZE;
+    }
+
+    getBlock(x, y, z) {
+        if (!this.inBounds(x, y, z)) { return BlockType.AIR; }
+        
+        return this.blocks[this.idx(x, y, z)];
     }
 
     uploadMesh() {
@@ -136,10 +227,10 @@ export class Chunk {
         this.needsUploading = false;
     }
 
-    render() {
+    render(shader) {
         const gl = this.gl;
+        shader.setMat4("uModel", this.model);
         gl.bindVertexArray(this.vao);
-        //gl.drawArrays(gl.LINES, 0, 810);
         gl.drawArrays(gl.TRIANGLES, 0, this.vertices.length);
     }
 
@@ -149,55 +240,5 @@ export class Chunk {
 
     inBounds(x, y, z) {
         return x >= 0 && y >= 0 && z >= 0 && x < CHUNK_SIZE && y < CHUNK_SIZE && z < CHUNK_SIZE;
-    }
-
-    solidBlock(x, y, z) {
-        return this.getBlock(x, y, z) != BlockType.AIR;
-    }
-
-    packVertex(x, y, z, normalIndex, blockType) {
-        return (
-            (x & 31) |
-            ((y & 31) << 5) |
-            ((z & 31) << 10) |
-            ((normalIndex & 7) << 15) |
-            ((blockType & 15) << 18)
-        ) >>> 0;
-    }
-
-    getLocalBlock(x, y, z) {
-        if (!this.inBounds(x, y, z)) { return BlockType.AIR; }
-        
-        return this.blocks[this.idx(x, y, z)];
-    }
-
-    getBlock(x, y, z, neighbors) {
-        if (this.inBounds(x, y, z)) return this.getLocalBlock(x, y, z);
-        
-        if (x < 0) {
-            const c = neighbors.nx;
-            return c ? c.getLocalBlock(x+CHUNK_SIZE, y, z) : BlockType.STONE;
-        }
-        if (y < 0) {
-            const c = neighbors.ny;
-            return c ? c.getLocalBlock(x, y+CHUNK_SIZE, z) : BlockType.STONE;
-        }
-        if (z < 0) {
-            const c = neighbors.nz;
-            return c ? c.getLocalBlock(x, y, z+CHUNK_SIZE) : BlockType.STONE;
-        }
-
-        if (x >= CHUNK_SIZE) {
-            const c = neighbors.px;
-            return c ? c.getLocalBlock(x-CHUNK_SIZE, y, z) : BlockType.STONE;
-        }
-        if (y >= CHUNK_SIZE) {
-            const c = neighbors.py;
-            return c ? c.getLocalBlock(x, y-CHUNK_SIZE, z) : BlockType.STONE;
-        }
-        if (z >= CHUNK_SIZE) {
-            const c = neighbors.pz;
-            return c ? c.getLocalBlock(x, y, z-CHUNK_SIZE) : BlockType.STONE;
-        }
     }
 }
