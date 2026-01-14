@@ -17,13 +17,16 @@ export class ChunkColumn {
         this.chunks = new Array(8).fill(null);
 
         this.heightMap = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+
+        this.minHeight = RENDER_HEIGHT * CHUNK_SIZE;
+        this.minChunkHeight = RENDER_HEIGHT;
     }
 
     init() {
         this.loadHeights();
 
         for (let y = 0; y < RENDER_HEIGHT; ++y) {
-            this.addChunkAt(y);
+            if (y > this.minChunkHeight-2)   this.addChunkAt(y);
         }
     }
 
@@ -37,7 +40,7 @@ export class ChunkColumn {
 
     render(shader) {
         for (const chunk of this.chunks) {
-            chunk.render(shader);
+            if(chunk)   chunk.render(shader);
         }
     }
 
@@ -47,8 +50,11 @@ export class ChunkColumn {
             for (let z = 0; z < CHUNK_SIZE; ++z) {
                 const height = this.getHeight(x, z);
                 this.heightMap[x * CHUNK_SIZE + z] = height;
+                if (height < this.minHeight)    this.minHeight = height;
             }
         }
+
+        this.minChunkHeight = Math.floor(this.minHeight / CHUNK_SIZE);
     }
 
     getHeight(x, z) {

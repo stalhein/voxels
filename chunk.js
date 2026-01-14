@@ -62,8 +62,6 @@ export class Chunk {
         );
 
         gl.bindVertexArray(null);
-
-        this.needsUploading = false;
     }
 
     // Terrain stuff
@@ -227,7 +225,7 @@ export class Chunk {
     }
 
     getBlock(x, y, z) {
-        if (!this.inBounds(x, y, z)) { return BlockType.AIR; }
+        if (!this.inBounds(x, y, z)) { return BlockType.STONE; }
         
         return this.blocks[this.idx(x, y, z)];
     }
@@ -235,12 +233,12 @@ export class Chunk {
     getBlockNeighbours(neighbours, x, y, z) {
         if (this.inBounds(x, y, z)) return this.blocks[this.idx(x, y, z)];
         
-        if (x < 0)              return neighbours[0] ? neighbours[0].getBlock(x+CHUNK_SIZE, y, z) : BlockType.AIR;
-        if (x >= CHUNK_SIZE)    return neighbours[1] ? neighbours[1].getBlock(x-CHUNK_SIZE, y, z) : BlockType.AIR;
-        if (y < 0)              return neighbours[2] ? neighbours[2].getBlock(x, y+CHUNK_SIZE, z) : BlockType.AIR;
-        if (y >= CHUNK_SIZE)    return neighbours[3] ? neighbours[3].getBlock(x, y-CHUNK_SIZE, z) : BlockType.AIR;
-        if (z < 0)              return neighbours[4] ? neighbours[4].getBlock(x, y, z+CHUNK_SIZE) : BlockType.AIR;
-        if (z >= CHUNK_SIZE)    return neighbours[5] ? neighbours[5].getBlock(x, y, z-CHUNK_SIZE) : BlockType.AIR;
+        if (x < 0)              return neighbours[0] ? neighbours[0].getBlock(x+CHUNK_SIZE, y, z) : BlockType.STONE;
+        if (x >= CHUNK_SIZE)    return neighbours[1] ? neighbours[1].getBlock(x-CHUNK_SIZE, y, z) : BlockType.STONE;
+        if (y < 0)              return neighbours[2] ? neighbours[2].getBlock(x, y+CHUNK_SIZE, z) : BlockType.STONE;
+        if (y >= CHUNK_SIZE)    return neighbours[3] ? neighbours[3].getBlock(x, y-CHUNK_SIZE, z) : BlockType.STONE;
+        if (z < 0)              return neighbours[4] ? neighbours[4].getBlock(x, y, z+CHUNK_SIZE) : BlockType.STONE;
+        if (z >= CHUNK_SIZE)    return neighbours[5] ? neighbours[5].getBlock(x, y, z-CHUNK_SIZE) : BlockType.STONE;
 
         return BlockType.AIR;
     }
