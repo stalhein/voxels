@@ -30,7 +30,7 @@ export class World {
         this.biomeNoise = new FastNoiseLite();
         this.terrainNoise = new FastNoiseLite();
 
-        this.chunkColumn = new ChunkColumn(gl, this, 0, 0);
+        this.columns = new Map();
     }
 
     async init() {
@@ -48,11 +48,14 @@ export class World {
         this.terrainNoise.SetFractalType(FastNoiseLite.FractalType.FBm);
         this.terrainNoise.SetFractalOctaves(4);
 
-        this.chunkColumn.init();
-
+        for (let x = 0; x < RENDER_RADIUS; ++x) {
+            for (let z = 0; z < RENDER_RADIUS; ++z) {
+                this.addColumn(x, z);
+            }
+        }
     }
 
-    update(width, height, playerPos) {
+    update(width, height) {
         mat4.perspective(
             this.projection,
             Math.PI / 3,
@@ -60,6 +63,10 @@ export class World {
             0.1,
             1000.0
         );
+
+        for (const column of this.columns) {
+            column[1].update();
+        }
     }
 
     render(camera) {
@@ -71,6 +78,32 @@ export class World {
         this.shader.setMat4("uProjection", this.projection);
         this.shader.setMat4("uView", view);
 
-        this.chunkColumn.render(this.shader);
+        for (const column of this.columns) {
+            column[1].render(this.shader);
+        }
+    }
+
+    // Helpers
+    getChunkKey(cx, cz) {
+        return `${cx},${cz}`;
+    }
+
+    addColumn(cx, cz) {
+        const key = this.getChunkKey(cx, cz);
+
+        let column = this.columns.get(key);
+        if (column) return column;
+
+        column = new ChunkColumn(this.gl, this, cx, cz);
+        column.init();
+        this.columns.set(key, column);
+    }
+
+    getColumn(cx, cz) {
+        const key = this.getChunkKey(cx, cz);
+
+        let column = this.columns.get(key);
+        
+        return column;
     }
 }

@@ -1,4 +1,4 @@
-import {Chunk} from "./chunk.js";
+import {BlockType, Chunk} from "./chunk.js";
 
 const CHUNK_SIZE = 16;
 
@@ -27,19 +27,18 @@ export class ChunkColumn {
         }
     }
 
+    update() {
+        for (const chunk of this.chunks) {
+            if (!chunk || !chunk.dirty) continue;
+            chunk.generateMesh();
+            chunk.uploadMesh();
+        }
+    }
+
     render(shader) {
         for (const chunk of this.chunks) {
             chunk.render(shader);
         }
-    }
-
-    addChunkAt(y) {
-        const chunk = new Chunk(this.gl, this.world, this, this.cx, y, this.cz);
-        this.chunks[y] = chunk;
-        chunk.init();
-        chunk.generateTerrain();
-        chunk.generateMesh();
-        chunk.uploadMesh();
     }
 
     // Heightmap stuff
@@ -77,5 +76,24 @@ export class ChunkColumn {
         noiseValue = Math.pow(noiseValue, 1.3);
 
         return 16 + noiseValue * 96;
+    }
+
+    // Helpers
+    addChunkAt(y) {
+        const chunk = new Chunk(this.gl, this.world, this, this.cx, y, this.cz);
+        this.chunks[y] = chunk;
+        chunk.init();
+        chunk.generateTerrain();
+    }
+
+    getChunk(cy) {
+        if (cy < 0 || cy >= RENDER_HEIGHT)  return null;
+        return this.chunks[cy] ? this.chunks[cy] : null;
+    }
+
+    getBlock(cy, x, y, c) {
+        const chunk = this.getChunk(cy);
+        if (!chunk) return BlockType.AIR;
+        return chunk.getBlock(x, y, z);
     }
 }

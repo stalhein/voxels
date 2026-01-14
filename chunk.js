@@ -17,16 +17,11 @@ export class Chunk {
         this.world = world;
         this.column = column;
 
-        this.chunkX = x;
-        this.chunkY = y;
-        this.chunkZ = z;
+        this.cx = x;
+        this.cy = y;
+        this.cz = z;
 
         this.model = mat4.create();
-
-        this.needsTerraining = false;
-        this.dirty = false;
-        this.needsUploading = false;
-        this.meshing = false;
 
         this.blocks = new Int8Array(CHUNK_VOLUME);
 
@@ -35,11 +30,40 @@ export class Chunk {
 
         this.vertices = [];
 
-        this.heightMap = column.heightMap;
+        this.dirty = false;
     }
 
-    async init() {
-        mat4.translate(this.model, this.model, vec3.fromValues(this.chunkX*CHUNK_SIZE, this.chunkY*CHUNK_SIZE, this.chunkZ*CHUNK_SIZE));
+    init() {
+        mat4.translate(this.model, this.model, vec3.fromValues(this.cx*CHUNK_SIZE, this.cy*CHUNK_SIZE, this.cz*CHUNK_SIZE));
+    }
+
+    uploadMesh() {
+        const gl = this.gl;
+
+        this.vao = gl.createVertexArray();
+        this.vbo = gl.createBuffer();
+
+        gl.bindVertexArray(this.vao);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Uint32Array(this.vertices),
+            gl.STATIC_DRAW
+        );
+
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribIPointer(
+            0,
+            1,
+            gl.UNSIGNED_INT,
+            4,
+            0
+        );
+
+        gl.bindVertexArray(null);
+
+        this.needsUploading = false;
     }
 
     // Terrain stuff
@@ -49,25 +73,33 @@ export class Chunk {
             for (let z = 0; z < CHUNK_SIZE; ++z) {
                 const height = this.column.heightMap[x * CHUNK_SIZE + z];
                 
-                let localHeight = height - this.chunkY*CHUNK_SIZE;
+                let localHeight = height - this.cy*CHUNK_SIZE;
                 if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
                 if (localHeight < 0)    localHeight = BlockType.AIR;
 
                 for (let y = 0; y < localHeight; ++y) {
-                    const realY = y + this.chunkY * CHUNK_SIZE;
+                    const realY = y + this.cy * CHUNK_SIZE;
 
-                    if (this.world.biomeNoise.GetNoise(x + this.chunkX * CHUNK_SIZE, z + this.chunkZ * CHUNK_SIZE) >= 0.2)  this.blocks[this.idx(x, y, z)] = BlockType.STONE;
+                    if (this.world.biomeNoise.GetNoise(x + this.cx * CHUNK_SIZE, z + this.cz * CHUNK_SIZE) >= 0.2)  this.blocks[this.idx(x, y, z)] = BlockType.STONE;
                     else    this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
                 }
             }
         }
 
-        this.needsTerraining = false;
         this.dirty = true;
     }
 
     // Meshing
     generateMesh() {
+        const neighbours = [
+            this.world.getColumn(this.cx-1, this.cz)?.getChunk(this.cy),
+            this.world.getColumn(this.cx+1, this.cz)?.getChunk(this.cy),
+            this.column.getChunk(this.cy-1),
+            this.column.getChunk(this.cy+1),
+            this.world.getColumn(this.cx, this.cz-1)?.getChunk(this.cy),
+            this.world.getColumn(this.cx, this.cz+1)?.getChunk(this.cy)
+        ];
+
         const AXIS = [
             {axis: 0, direction: -1, normal: 0},
             {axis: 0, direction:  1, normal: 1},
@@ -95,7 +127,7 @@ export class Chunk {
                         const [nx, ny, nz] = getCoordOrder(axis, u, v, d + direction);
 
                         const a = this.getBlock(x, y, z);
-                        const b = this.getBlock(nx, ny, nz);
+                        const b = this.getBlockNeighbours(neighbours, nx, ny, nz);
 
                         if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
                     }
@@ -137,6 +169,8 @@ export class Chunk {
                 }
             }
         }
+
+        this.dirty = false;
     }
 
     packVertex(x, y, z, normalIndex, blockType) {
@@ -198,33 +232,17 @@ export class Chunk {
         return this.blocks[this.idx(x, y, z)];
     }
 
-    uploadMesh() {
-        const gl = this.gl;
+    getBlockNeighbours(neighbours, x, y, z) {
+        if (this.inBounds(x, y, z)) return this.blocks[this.idx(x, y, z)];
+        
+        if (x < 0)              return neighbours[0] ? neighbours[0].getBlock(x+CHUNK_SIZE, y, z) : BlockType.AIR;
+        if (x >= CHUNK_SIZE)    return neighbours[1] ? neighbours[1].getBlock(x-CHUNK_SIZE, y, z) : BlockType.AIR;
+        if (y < 0)              return neighbours[2] ? neighbours[2].getBlock(x, y+CHUNK_SIZE, z) : BlockType.AIR;
+        if (y >= CHUNK_SIZE)    return neighbours[3] ? neighbours[3].getBlock(x, y-CHUNK_SIZE, z) : BlockType.AIR;
+        if (z < 0)              return neighbours[4] ? neighbours[4].getBlock(x, y, z+CHUNK_SIZE) : BlockType.AIR;
+        if (z >= CHUNK_SIZE)    return neighbours[5] ? neighbours[5].getBlock(x, y, z-CHUNK_SIZE) : BlockType.AIR;
 
-        this.vao = gl.createVertexArray();
-        this.vbo = gl.createBuffer();
-
-        gl.bindVertexArray(this.vao);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            new Uint32Array(this.vertices),
-            gl.STATIC_DRAW
-        );
-
-        gl.enableVertexAttribArray(0);
-        gl.vertexAttribIPointer(
-            0,
-            1,
-            gl.UNSIGNED_INT,
-            4,
-            0
-        );
-
-        gl.bindVertexArray(null);
-
-        this.needsUploading = false;
+        return BlockType.AIR;
     }
 
     render(shader) {

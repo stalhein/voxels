@@ -30,7 +30,7 @@ function render(time) {
     lastTime = time;
 
     camera.update(dt);
-    world.update(canvas.width, canvas.height, camera.position);
+    world.update(canvas.width, canvas.height);
 
     gl.clearColor(0.5, 0.65, 0.8, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
