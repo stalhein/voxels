@@ -7,7 +7,7 @@ import FastNoiseLite from "./FastNoiseLite.js";
 
 const CHUNK_SIZE = 16;
 
-const RENDER_RADIUS = 12;
+const RENDER_RADIUS = 24;
 const RENDER_HEIGHT = 8;
 
 export const BiomeType = {

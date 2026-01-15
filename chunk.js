@@ -3,6 +3,8 @@ import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
 
+const GREEDY = true;
+
 const FACES = [
     // Left face
     0, 0, 0, 0,
@@ -156,8 +158,20 @@ export class Chunk {
             this.world.getColumn(this.cx, this.cz+1)?.getChunk(this.cy)
         ];
 
+        // Create padded blocks array
+        const PADDED_SIZE = CHUNK_SIZE + 2;
+        const padded = new Uint8Array(PADDED_SIZE * PADDED_SIZE * PADDED_SIZE);
+        const paddedIdx = (x, y, z) => (z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1;
+        for (let z = -1; z < PADDED_SIZE-1; ++z) {
+            for (let y = -1; y < PADDED_SIZE-1; ++y) {
+                for (let x = -1; x < PADDED_SIZE-1; ++x) {
+                    padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1] = (this.getBlockNeighbours(neighbours, x, y, z));
+                }
+            }
+        }
+
+        this.vertices.length = 0;
         // Greedy
-        const GREEDY = true;
         if (GREEDY) {
             const AXIS = [
                 {axis: 0, direction: -1, normal: 0},
@@ -168,80 +182,333 @@ export class Chunk {
                 {axis: 2, direction:  1, normal: 5},
             ];
 
-            function getCoordOrder(axis, u, v, d) {
-                if (axis == 0)  return [d, u, v];
-                if (axis == 1)  return [u, d, v];
-                return [u, v, d];
-            }
-
-            const getBlock = (x, y, z) => blocks[x*256+y*16+z];
-
+            // Axis == 0 direction == -1
             const mask = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
-            for (const {axis, direction, normal} of AXIS) {
-                for (let d = 0; d < CHUNK_SIZE; ++d) {
-                    // Fill mask
-                    mask.fill(0);
+            for (let d = 0; d < CHUNK_SIZE; ++d) {
+                // Fill mask
+                mask.fill(0);
 
-                    for (let u = 0; u < CHUNK_SIZE; ++u) {
-                        for (let v = 0; v < CHUNK_SIZE; ++v) {
-                            const [x, y, z] = getCoordOrder(axis, u, v, d);
-                            const [nx, ny, nz] = getCoordOrder(axis, u, v, d + direction);
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE; ++v) {
+                        let x = d, y = u, z = v;
+                        let nx = d-1, ny = u, nz = v;
 
-                            const a = getBlock(x, y, z);
-                            const b = this.getBlockNeighbours(neighbours, nx, ny, nz);
+                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
-                            if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
-                        }
+                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
                     }
+                }
 
-                    // Create mesh
-                    for (let u = 0; u < CHUNK_SIZE; ++u) {
-                        for (let v = 0; v < CHUNK_SIZE;) {
-                            const blockType = mask[u * CHUNK_SIZE + v];
-                            if (blockType == BlockType.AIR) {
-                                v++;
-                                continue;
-                            }
-
-                            // Expand width
-                            let w = 1;
-                            while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
-
-                            // Expand height
-                            let h = 1;
-                            outer:
-                            while (u + h < CHUNK_SIZE) {
-                                for (let k = 0; k < w; ++k) {
-                                    if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
-                                }
-                                h++;
-                            }
-                            
-                            this.addQuad(axis, direction, normal, d, u, v, w, h, blockType);
-
-                            for (let du = 0; du < h; ++du) {
-                                for (let dv = 0; dv < w; ++dv) {
-                                    mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
-                                }
-                            }
-
-                            v += w;
+                // Create mesh
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE;) {
+                        const blockType = mask[u * CHUNK_SIZE + v];
+                        if (blockType == BlockType.AIR) {
+                            v++;
+                            continue;
                         }
+
+                        // Expand width
+                        let w = 1;
+                        while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
+
+                        // Expand height
+                        let h = 1;
+                        outer:
+                        while (u + h < CHUNK_SIZE) {
+                            for (let k = 0; k < w; ++k) {
+                                if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
+                            }
+                            h++;
+                        }
+                        
+                        this.addQuad(0, -1, 0, d, u, v, w, h, blockType);
+
+                        for (let du = 0; du < h; ++du) {
+                            for (let dv = 0; dv < w; ++dv) {
+                                mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
+                            }
+                        }
+
+                        v += w;
+                    }
+                }
+            }
+            // Axis == 0 direction == 1
+            for (let d = 0; d < CHUNK_SIZE; ++d) {
+                // Fill mask
+                mask.fill(0);
+
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE; ++v) {
+                        let x = d, y = u, z = v;
+                        let nx = d+1, ny = u, nz = v;
+
+                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+
+                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                    }
+                }
+
+                // Create mesh
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE;) {
+                        const blockType = mask[u * CHUNK_SIZE + v];
+                        if (blockType == BlockType.AIR) {
+                            v++;
+                            continue;
+                        }
+
+                        // Expand width
+                        let w = 1;
+                        while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
+
+                        // Expand height
+                        let h = 1;
+                        outer:
+                        while (u + h < CHUNK_SIZE) {
+                            for (let k = 0; k < w; ++k) {
+                                if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
+                            }
+                            h++;
+                        }
+                        
+                        this.addQuad(0, 1, 1, d, u, v, w, h, blockType);
+
+                        for (let du = 0; du < h; ++du) {
+                            for (let dv = 0; dv < w; ++dv) {
+                                mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
+                            }
+                        }
+
+                        v += w;
+                    }
+                }
+            }
+            // Axis == 1 direction == -1
+            for (let d = 0; d < CHUNK_SIZE; ++d) {
+                // Fill mask
+                mask.fill(0);
+
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE; ++v) {
+                        let x = u, y = d, z = v;
+                        let nx = u, ny = d-1, nz = v;
+
+                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+
+                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                    }
+                }
+
+                // Create mesh
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE;) {
+                        const blockType = mask[u * CHUNK_SIZE + v];
+                        if (blockType == BlockType.AIR) {
+                            v++;
+                            continue;
+                        }
+
+                        // Expand width
+                        let w = 1;
+                        while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
+
+                        // Expand height
+                        let h = 1;
+                        outer:
+                        while (u + h < CHUNK_SIZE) {
+                            for (let k = 0; k < w; ++k) {
+                                if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
+                            }
+                            h++;
+                        }
+                        
+                        this.addQuad(1, -1, 2, d, u, v, w, h, blockType);
+
+                        for (let du = 0; du < h; ++du) {
+                            for (let dv = 0; dv < w; ++dv) {
+                                mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
+                            }
+                        }
+
+                        v += w;
+                    }
+                }
+            }
+            // Axis == 1 direction == 1
+            for (let d = 0; d < CHUNK_SIZE; ++d) {
+                // Fill mask
+                mask.fill(0);
+
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE; ++v) {
+                        let x = u, y = d, z = v;
+                        let nx = u, ny = d+1, nz = v;
+
+                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+
+                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                    }
+                }
+
+                // Create mesh
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE;) {
+                        const blockType = mask[u * CHUNK_SIZE + v];
+                        if (blockType == BlockType.AIR) {
+                            v++;
+                            continue;
+                        }
+
+                        // Expand width
+                        let w = 1;
+                        while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
+
+                        // Expand height
+                        let h = 1;
+                        outer:
+                        while (u + h < CHUNK_SIZE) {
+                            for (let k = 0; k < w; ++k) {
+                                if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
+                            }
+                            h++;
+                        }
+                        
+                        this.addQuad(1, 1, 3, d, u, v, w, h, blockType);
+
+                        for (let du = 0; du < h; ++du) {
+                            for (let dv = 0; dv < w; ++dv) {
+                                mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
+                            }
+                        }
+
+                        v += w;
+                    }
+                }
+            }
+            // Axis == 2 direction == -1
+            for (let d = 0; d < CHUNK_SIZE; ++d) {
+                // Fill mask
+                mask.fill(0);
+
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE; ++v) {
+                        let x = u, y = v, z = d;
+                        let nx = u, ny = v, nz = d-1;
+
+                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+
+                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                    }
+                }
+
+                // Create mesh
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE;) {
+                        const blockType = mask[u * CHUNK_SIZE + v];
+                        if (blockType == BlockType.AIR) {
+                            v++;
+                            continue;
+                        }
+
+                        // Expand width
+                        let w = 1;
+                        while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
+
+                        // Expand height
+                        let h = 1;
+                        outer:
+                        while (u + h < CHUNK_SIZE) {
+                            for (let k = 0; k < w; ++k) {
+                                if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
+                            }
+                            h++;
+                        }
+                        
+                        this.addQuad(2, -1, 4, d, u, v, w, h, blockType);
+
+                        for (let du = 0; du < h; ++du) {
+                            for (let dv = 0; dv < w; ++dv) {
+                                mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
+                            }
+                        }
+
+                        v += w;
+                    }
+                }
+            }
+            // Axis == 2 direction == 1
+            for (let d = 0; d < CHUNK_SIZE; ++d) {
+                // Fill mask
+                mask.fill(0);
+
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE; ++v) {
+                        let x = u, y = v, z = d;
+                        let nx = u, ny = v, nz = d+1;
+
+                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+
+                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                    }
+                }
+
+                // Create mesh
+                for (let u = 0; u < CHUNK_SIZE; ++u) {
+                    for (let v = 0; v < CHUNK_SIZE;) {
+                        const blockType = mask[u * CHUNK_SIZE + v];
+                        if (blockType == BlockType.AIR) {
+                            v++;
+                            continue;
+                        }
+
+                        // Expand width
+                        let w = 1;
+                        while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
+
+                        // Expand height
+                        let h = 1;
+                        outer:
+                        while (u + h < CHUNK_SIZE) {
+                            for (let k = 0; k < w; ++k) {
+                                if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
+                            }
+                            h++;
+                        }
+                        
+                        this.addQuad(2, 1, 5, d, u, v, w, h, blockType);
+
+                        for (let du = 0; du < h; ++du) {
+                            for (let dv = 0; dv < w; ++dv) {
+                                mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
+                            }
+                        }
+
+                        v += w;
                     }
                 }
             }
         } else {
+            // Naive
             for (let z = 0; z < CHUNK_SIZE; ++z) {
                 for (let y = 0; y < CHUNK_SIZE; ++y) {
                     for (let x = 0; x < CHUNK_SIZE; ++x) {
-                        if (blocks[this.idx(x, y, z)] == BlockType.AIR)   continue;
+                        const blockType = blocks[this.idx(x, y, z)];
+                        if (blockType == BlockType.AIR)   continue;
 
-                        if (this.getBlockNeighbours(neighbours, x-1, y, z) == BlockType.AIR)   this.addFace(x, y, z, 0);
-                        if (this.getBlockNeighbours(neighbours, x+1, y, z) == BlockType.AIR)   this.addFace(x, y, z, 1);
-                        if (this.getBlockNeighbours(neighbours, x, y-1, z) == BlockType.AIR)   this.addFace(x, y, z, 2);
-                        if (this.getBlockNeighbours(neighbours, x, y+1, z) == BlockType.AIR)   this.addFace(x, y, z, 3);
-                        if (this.getBlockNeighbours(neighbours, x, y, z-1) == BlockType.AIR)   this.addFace(x, y, z, 4);
-                        if (this.getBlockNeighbours(neighbours, x, y, z+1) == BlockType.AIR)   this.addFace(x, y, z, 5);
+                        if (padded[paddedIdx(x-1, y, z)] == BlockType.AIR)   this.addFace(x, y, z, 0, blockType);
+                        if (padded[paddedIdx(x+1, y, z)] == BlockType.AIR)   this.addFace(x, y, z, 1, blockType);
+                        if (padded[paddedIdx(x, y-1, z)] == BlockType.AIR)   this.addFace(x, y, z, 2, blockType);
+                        if (padded[paddedIdx(x, y+1, z)] == BlockType.AIR)   this.addFace(x, y, z, 3, blockType);
+                        if (padded[paddedIdx(x, y, z-1)] == BlockType.AIR)   this.addFace(x, y, z, 4, blockType);
+                        if (padded[paddedIdx(x, y, z+1)] == BlockType.AIR)   this.addFace(x, y, z, 5, blockType);
                     }
                 }
             }
@@ -295,13 +562,13 @@ export class Chunk {
         else    this.vertices.push(v0, v2, v1, v0, v3, v2);
     }
     
-    addFace(x, y, z, normalIndex) {
+    addFace(x, y, z, normalIndex, blockType) {
         const base = normalIndex * 24;
         for (let i = 0; i < 6; ++i) {
             const lx = FACES[base+i*4+0] + x;
             const ly = FACES[base+i*4+1] + y;
             const lz = FACES[base+i*4+2] + z;
-            this.vertices.push(this.packVertex(lx, ly, lz, normalIndex));
+            this.vertices.push(this.packVertex(lx, ly, lz, normalIndex, blockType));
         }
     }
 
