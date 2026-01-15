@@ -48,11 +48,13 @@ export class World {
         this.terrainNoise.SetFractalType(FastNoiseLite.FractalType.FBm);
         this.terrainNoise.SetFractalOctaves(4);
 
+        const lastTime = performance.now();
         for (let x = 0; x < RENDER_RADIUS; ++x) {
             for (let z = 0; z < RENDER_RADIUS; ++z) {
                 this.addColumn(x, z);
             }
         }
+        console.log(performance.now() - lastTime);
     }
 
     update(width, height) {
@@ -64,9 +66,11 @@ export class World {
             1000.0
         );
 
+        const lastTime = performance.now();
         for (const column of this.columns) {
             column[1].update();
         }
+        if (performance.now() - lastTime > 1)   console.log(performance.now() - lastTime);
     }
 
     render(camera) {

@@ -3,6 +3,62 @@ import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
 
+const FACES = [
+    // Left face
+    0, 0, 0, 0,
+    0, 1, 0, 2,
+    0, 1, 1, 3,
+
+    0, 0, 0, 0,
+    0, 1, 1, 3,
+    0, 0, 1, 1,
+
+    // Right face
+    1, 0, 0, 0,
+    1, 0, 1, 1,
+    1, 1, 1, 3,
+
+    1, 0, 0, 0,
+    1, 1, 1, 3,
+    1, 1, 0, 2,
+
+    // Bottom face
+    0, 0, 0, 0,
+    0, 0, 1, 2,
+    1, 0, 1, 3,
+
+    0, 0, 0, 0,
+    1, 0, 1, 3,
+    1, 0, 0, 1,
+
+    // Top face
+    0, 1, 0, 0,
+    1, 1, 0, 1,
+    1, 1, 1, 3,
+
+    0, 1, 0, 0,
+    1, 1, 1, 3,
+    0, 1, 1, 2,
+
+    // Back face
+    0, 0, 0, 0,
+    1, 0, 0, 1,
+    1, 1, 0, 3,
+
+    0, 0, 0, 0,
+    1, 1, 0, 3,
+    0, 1, 0, 2,
+
+    // Front face
+    0, 0, 1, 0,
+    0, 1, 1, 2,
+    1, 1, 1, 3,
+
+    0, 0, 1, 0,
+    1, 1, 1, 3,
+    1, 0, 1, 1
+];
+
 export const BlockType = {
     AIR: 0,
     GRASS: 1,
@@ -89,6 +145,8 @@ export class Chunk {
 
     // Meshing
     generateMesh() {
+        const blocks = this.blocks;
+
         const neighbours = [
             this.world.getColumn(this.cx-1, this.cz)?.getChunk(this.cy),
             this.world.getColumn(this.cx+1, this.cz)?.getChunk(this.cy),
@@ -98,75 +156,97 @@ export class Chunk {
             this.world.getColumn(this.cx, this.cz+1)?.getChunk(this.cy)
         ];
 
-        const AXIS = [
-            {axis: 0, direction: -1, normal: 0},
-            {axis: 0, direction:  1, normal: 1},
-            {axis: 1, direction: -1, normal: 2},
-            {axis: 1, direction:  1, normal: 3},
-            {axis: 2, direction: -1, normal: 4},
-            {axis: 2, direction:  1, normal: 5},
-        ];
+        // Greedy
+        const GREEDY = true;
+        if (GREEDY) {
+            const AXIS = [
+                {axis: 0, direction: -1, normal: 0},
+                {axis: 0, direction:  1, normal: 1},
+                {axis: 1, direction: -1, normal: 2},
+                {axis: 1, direction:  1, normal: 3},
+                {axis: 2, direction: -1, normal: 4},
+                {axis: 2, direction:  1, normal: 5},
+            ];
 
-        function getCoordOrder(axis, u, v, d) {
-            if (axis == 0)  return [d, u, v];
-            if (axis == 1)  return [u, d, v];
-            return [u, v, d];
-        }
+            function getCoordOrder(axis, u, v, d) {
+                if (axis == 0)  return [d, u, v];
+                if (axis == 1)  return [u, d, v];
+                return [u, v, d];
+            }
 
-        const mask = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
-        for (const {axis, direction, normal} of AXIS) {
-            for (let d = 0; d < CHUNK_SIZE; ++d) {
-                // Fill mask
-                mask.fill(0);
+            const getBlock = (x, y, z) => blocks[x*256+y*16+z];
 
-                for (let u = 0; u < CHUNK_SIZE; ++u) {
-                    for (let v = 0; v < CHUNK_SIZE; ++v) {
-                        const [x, y, z] = getCoordOrder(axis, u, v, d);
-                        const [nx, ny, nz] = getCoordOrder(axis, u, v, d + direction);
+            const mask = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+            for (const {axis, direction, normal} of AXIS) {
+                for (let d = 0; d < CHUNK_SIZE; ++d) {
+                    // Fill mask
+                    mask.fill(0);
 
-                        const a = this.getBlock(x, y, z);
-                        const b = this.getBlockNeighbours(neighbours, nx, ny, nz);
+                    for (let u = 0; u < CHUNK_SIZE; ++u) {
+                        for (let v = 0; v < CHUNK_SIZE; ++v) {
+                            const [x, y, z] = getCoordOrder(axis, u, v, d);
+                            const [nx, ny, nz] = getCoordOrder(axis, u, v, d + direction);
 
-                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                            const a = getBlock(x, y, z);
+                            const b = this.getBlockNeighbours(neighbours, nx, ny, nz);
+
+                            if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                        }
+                    }
+
+                    // Create mesh
+                    for (let u = 0; u < CHUNK_SIZE; ++u) {
+                        for (let v = 0; v < CHUNK_SIZE;) {
+                            const blockType = mask[u * CHUNK_SIZE + v];
+                            if (blockType == BlockType.AIR) {
+                                v++;
+                                continue;
+                            }
+
+                            // Expand width
+                            let w = 1;
+                            while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
+
+                            // Expand height
+                            let h = 1;
+                            outer:
+                            while (u + h < CHUNK_SIZE) {
+                                for (let k = 0; k < w; ++k) {
+                                    if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
+                                }
+                                h++;
+                            }
+                            
+                            this.addQuad(axis, direction, normal, d, u, v, w, h, blockType);
+
+                            for (let du = 0; du < h; ++du) {
+                                for (let dv = 0; dv < w; ++dv) {
+                                    mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
+                                }
+                            }
+
+                            v += w;
+                        }
                     }
                 }
+            }
+        } else {
+            for (let z = 0; z < CHUNK_SIZE; ++z) {
+                for (let y = 0; y < CHUNK_SIZE; ++y) {
+                    for (let x = 0; x < CHUNK_SIZE; ++x) {
+                        if (blocks[this.idx(x, y, z)] == BlockType.AIR)   continue;
 
-                // Create mesh
-                for (let u = 0; u < CHUNK_SIZE; ++u) {
-                    for (let v = 0; v < CHUNK_SIZE;) {
-                        const blockType = mask[u * CHUNK_SIZE + v];
-                        if (blockType == BlockType.AIR) {
-                            v++;
-                            continue;
-                        }
-
-                        // Expand width
-                        let w = 1;
-                        while (v + w < CHUNK_SIZE && mask[u * CHUNK_SIZE + v + w] == blockType) w++;
-
-                        // Expand height
-                        let h = 1;
-                        outer:
-                        while (u + h < CHUNK_SIZE) {
-                            for (let k = 0; k < w; ++k) {
-                                if (mask[(u+h) * CHUNK_SIZE + v + k] != blockType)  break outer;
-                            }
-                            h++;
-                        }
-                        
-                        this.addQuad(axis, direction, normal, d, u, v, w, h, blockType);
-
-                        for (let du = 0; du < h; ++du) {
-                            for (let dv = 0; dv < w; ++dv) {
-                                mask[(u+du) * CHUNK_SIZE + v + dv] = 0;
-                            }
-                        }
-
-                        v += w;
+                        if (this.getBlockNeighbours(neighbours, x-1, y, z) == BlockType.AIR)   this.addFace(x, y, z, 0);
+                        if (this.getBlockNeighbours(neighbours, x+1, y, z) == BlockType.AIR)   this.addFace(x, y, z, 1);
+                        if (this.getBlockNeighbours(neighbours, x, y-1, z) == BlockType.AIR)   this.addFace(x, y, z, 2);
+                        if (this.getBlockNeighbours(neighbours, x, y+1, z) == BlockType.AIR)   this.addFace(x, y, z, 3);
+                        if (this.getBlockNeighbours(neighbours, x, y, z-1) == BlockType.AIR)   this.addFace(x, y, z, 4);
+                        if (this.getBlockNeighbours(neighbours, x, y, z+1) == BlockType.AIR)   this.addFace(x, y, z, 5);
                     }
                 }
             }
         }
+        
 
         this.dirty = false;
     }
@@ -214,6 +294,16 @@ export class Chunk {
         if (direction == 1)    this.vertices.push(v0, v1, v2, v0, v2, v3);
         else    this.vertices.push(v0, v2, v1, v0, v3, v2);
     }
+    
+    addFace(x, y, z, normalIndex) {
+        const base = normalIndex * 24;
+        for (let i = 0; i < 6; ++i) {
+            const lx = FACES[base+i*4+0] + x;
+            const ly = FACES[base+i*4+1] + y;
+            const lz = FACES[base+i*4+2] + z;
+            this.vertices.push(this.packVertex(lx, ly, lz, normalIndex));
+        }
+    }
 
     // Helpers
     idx(x, y, z) {
@@ -252,9 +342,5 @@ export class Chunk {
 
     idx(x, y, z) {
         return x * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + z;
-    }
-
-    inBounds(x, y, z) {
-        return x >= 0 && y >= 0 && z >= 0 && x < CHUNK_SIZE && y < CHUNK_SIZE && z < CHUNK_SIZE;
     }
 }
