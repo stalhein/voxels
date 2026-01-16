@@ -3,6 +3,7 @@ import { mat4, vec3 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/ind
 export class Camera {
     constructor() {
         this.position = vec3.fromValues(0, 10, 10);
+        this.forward = vec3.create();
         this.pitch = 0;
         this.yaw = Math.PI;
         this.speed = 20;
@@ -29,14 +30,14 @@ export class Camera {
     }
 
     getViewMatrix() {
-        const forward = vec3.fromValues(
+        this.forward = vec3.fromValues(
             Math.cos(this.pitch) * Math.sin(this.yaw),
             Math.sin(this.pitch),
             Math.cos(this.pitch) * Math.cos(this.yaw)
         );
 
         const target = vec3.create();
-        vec3.add(target, this.position, forward);
+        vec3.add(target, this.position, this.forward);
 
         const view = mat4.create();
         mat4.lookAt(view, this.position, target, [0, 1, 0]);

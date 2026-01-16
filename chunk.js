@@ -1,4 +1,5 @@
 import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
+import {Constants} from "./constants.js";
 
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
@@ -89,6 +90,8 @@ export class Chunk {
         this.vertices = [];
 
         this.dirty = false;
+
+        this.neighbours = null;
     }
 
     init() {
@@ -136,8 +139,8 @@ export class Chunk {
                 for (let y = 0; y < localHeight; ++y) {
                     const realY = y + this.cy * CHUNK_SIZE;
 
-                    if (this.world.biomeNoise.GetNoise(x + this.cx * CHUNK_SIZE, z + this.cz * CHUNK_SIZE) >= 0.2)  this.blocks[this.idx(x, y, z)] = BlockType.STONE;
-                    else    this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
+                    if (realY >= height-1)  this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
+                    else    this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
                 }
             }
         }
@@ -157,6 +160,7 @@ export class Chunk {
             this.world.getColumn(this.cx, this.cz-1)?.getChunk(this.cy),
             this.world.getColumn(this.cx, this.cz+1)?.getChunk(this.cy)
         ];
+        this.neighbours = neighbours;
 
         // Create padded blocks array
         const PADDED_SIZE = CHUNK_SIZE + 2;
@@ -587,6 +591,20 @@ export class Chunk {
         return this.blocks[this.idx(x, y, z)];
     }
 
+    setBlock(x, y, z, block) {
+        if (!this.inBounds(x, y, z)) return;
+        
+        this.blocks[this.idx(x, y, z)] = block;
+        this.dirty = true;
+
+        if (x == 0 && this.neighbours[0]) this.neighbours[0].dirty = true;
+        if (y == 0 && this.neighbours[2]) this.neighbours[2].dirty = true;
+        if (z == 0 && this.neighbours[4]) this.neighbours[4].dirty = true;
+        if (x == CHUNK_SIZE-1 && this.neighbours[1]) this.neighbours[1].dirty = true;
+        if (y == CHUNK_SIZE-1 && this.neighbours[3]) this.neighbours[3].dirty = true;
+        if (z == CHUNK_SIZE-1 && this.neighbours[5]) this.neighbours[5].dirty = true;
+    }
+
     getBlockNeighbours(neighbours, x, y, z) {
         if (this.inBounds(x, y, z)) return this.blocks[this.idx(x, y, z)];
         
@@ -600,14 +618,11 @@ export class Chunk {
         return BlockType.AIR;
     }
 
+
     render(shader) {
         const gl = this.gl;
         shader.setMat4("uModel", this.model);
         gl.bindVertexArray(this.vao);
         gl.drawArrays(gl.TRIANGLES, 0, this.vertices.length);
-    }
-
-    idx(x, y, z) {
-        return x * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + z;
     }
 }

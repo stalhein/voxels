@@ -1,9 +1,7 @@
 import {BlockType, Chunk} from "./chunk.js";
+import {Constants} from "./constants.js";
 
 const CHUNK_SIZE = 16;
-
-const RENDER_RADIUS = 12;
-const RENDER_HEIGHT = 8;
 
 export class ChunkColumn {
     constructor(gl, world, x, z) {
@@ -17,16 +15,13 @@ export class ChunkColumn {
         this.chunks = new Array(8).fill(null);
 
         this.heightMap = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
-
-        this.minHeight = RENDER_HEIGHT * CHUNK_SIZE;
-        this.minChunkHeight = RENDER_HEIGHT;
     }
 
     init() {
         this.loadHeights();
 
-        for (let y = 0; y < RENDER_HEIGHT; ++y) {
-            if (y > this.minChunkHeight-2)   this.addChunkAt(y);
+        for (let y = 0; y < Constants.RENDER_HEIGHT; ++y) {
+            this.addChunkAt(y);
         }
     }
 
@@ -50,11 +45,8 @@ export class ChunkColumn {
             for (let z = 0; z < CHUNK_SIZE; ++z) {
                 const height = this.getHeight(x, z);
                 this.heightMap[x * CHUNK_SIZE + z] = height;
-                if (height < this.minHeight)    this.minHeight = height;
             }
         }
-
-        this.minChunkHeight = Math.floor(this.minHeight / CHUNK_SIZE);
     }
 
     getHeight(x, z) {
@@ -93,13 +85,19 @@ export class ChunkColumn {
     }
 
     getChunk(cy) {
-        if (cy < 0 || cy >= RENDER_HEIGHT)  return null;
+        if (cy < 0 || cy >= Constants.RENDER_HEIGHT)  return null;
         return this.chunks[cy] ? this.chunks[cy] : null;
     }
 
-    getBlock(cy, x, y, c) {
+    getBlock(cy, x, y, z) {
         const chunk = this.getChunk(cy);
         if (!chunk) return BlockType.AIR;
         return chunk.getBlock(x, y, z);
+    }
+
+    setBlock(cy, x, y, z, block) {
+        const chunk = this.getChunk(cy);
+        if (!chunk) return;
+        return chunk.setBlock(x, y, z, block);
     }
 }
