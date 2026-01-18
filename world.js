@@ -20,7 +20,9 @@ export class World {
         
         this.projection = mat4.create();
         
-        this.shader = null;
+        this.solidShader = null;
+        this.waterShader = null;
+
         this.textureAtlas = null;
 
         this.oldPlayerChunk = vec3.create();
@@ -41,8 +43,11 @@ export class World {
     }
 
     async init() {
-        this.shader = new Shader(this.gl, "shaders/vertex.glsl", "shaders/fragment.glsl");
-        await this.shader.load();
+        this.solidShader = new Shader(this.gl, "shaders/solidVertex.glsl", "shaders/solidFragment.glsl");
+        await this.solidShader.load();
+
+        this.waterShader = new Shader(this.gl, "shaders/waterVertex.glsl", "shaders/waterFragment.glsl");
+        await this.waterShader.load();
 
         this.textureAtlas = new Texture(this.gl, "assets/atlas.png");
         await this.textureAtlas.load();        
@@ -51,7 +56,7 @@ export class World {
         this.biomeNoise.SetFrequency(0.0008);
 
         this.terrainNoise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        this.terrainNoise.SetFrequency(0.008);
+        this.terrainNoise.SetFrequency(0.005);
         this.terrainNoise.SetFractalType(FastNoiseLite.FractalType.FBm);
         this.terrainNoise.SetFractalOctaves(4);
 
@@ -82,21 +87,30 @@ export class World {
         this.currentBlock = this.raycast(playerPosition, playerDirection);
     }
 
-    render(camera) {
-        this.shader.use();
-
+    render(camera, playerPos) {
         const view = camera.getViewMatrix();
+
+        this.solidShader.use();
         this.textureAtlas.bind();
-        this.shader.setInt("uAtlas", 0);
-        this.shader.setMat4("uProjection", this.projection);
-        this.shader.setMat4("uView", view);
+        this.solidShader.setInt("uAtlas", 0);
+        this.solidShader.setMat4("uProjection", this.projection);
+        this.solidShader.setMat4("uView", view);
 
         for (const column of this.columns) {
-            column[1].renderSolid(this.shader);
+            column[1].renderSolid(this.solidShader);
         }
 
+
+        this.waterShader.use();
+        this.textureAtlas.bind();
+        this.waterShader.setInt("uAtlas", 0);
+        this.waterShader.setMat4("uProjection", this.projection);
+        this.waterShader.setMat4("uView", view);
+        this.waterShader.setFloat("uTime", performance.now());
+        this.waterShader.setVec3("uCameraPos", playerPos);
+
         for (const column of this.columns) {
-            column[1].renderWater(this.shader);
+            column[1].renderWater(this.waterShader, playerPos);
         }
     }
 
@@ -132,7 +146,7 @@ export class World {
         let distance = 0;
         let hitNormal = vec3.create();
         while (distance <= MAX_REACH) {
-            if (this.getBlock(block[0], block[1], block[2]) != BlockType.AIR) {
+            if (this.getBlock(block[0], block[1], block[2]) != BlockType.AIR && this.getBlock(block[0], block[1], block[2]) != BlockType.WATER) {
                 return {
                     block: vec3.clone(block),
                     normal: vec3.clone(hitNormal)
@@ -228,6 +242,7 @@ export class World {
 
         if (!column)    return;
 
+        if (wy < Constants.CHUNK_SIZE * 2)   return column.setBlock(cy, x, y, z, BlockType.WATER);
         return column.setBlock(cy, x, y, z, BlockType.AIR);
     }
 

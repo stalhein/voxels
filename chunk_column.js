@@ -1,3 +1,4 @@
+import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
 import {BlockType, Chunk} from "./chunk.js";
 import {Constants} from "./constants.js";
 
@@ -12,17 +13,54 @@ export class ChunkColumn {
         this.cx = x;
         this.cz = z;
 
+        this.model = mat4.create();
+
         this.chunks = new Array(8).fill(null);
 
         this.heightMap = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+
+        this.solidVao = null;
+        this.solidVbo = null;
+        this.waterVao = null;
+        this.waterVbo = null;
     }
 
     init() {
+        mat4.translate(this.model, this.model, vec3.fromValues(this.cx*CHUNK_SIZE, 0, this.cz*CHUNK_SIZE));
+
         this.loadHeights();
 
         for (let y = 0; y < Constants.RENDER_HEIGHT; ++y) {
             this.addChunkAt(y);
         }
+
+        const gl = this.gl;
+
+        // Solid
+        this.solidVao = gl.createVertexArray();
+        this.solidVbo = gl.createBuffer();
+
+        gl.bindVertexArray(this.solidVao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.solidVbo);
+
+        gl.bufferData(gl.ARRAY_BUFFER, Constants.MAX_VERTS_PER_CHUNK * Constants.RENDER_HEIGHT * 4, gl.DYNAMIC_DRAW);
+
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribIPointer(0, 1, gl.UNSIGNED_INT, 4, 0);
+
+        // Water
+        this.waterVao = gl.createVertexArray();
+        this.waterVbo = gl.createBuffer();
+
+        gl.bindVertexArray(this.waterVao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.waterVbo);
+
+        gl.bufferData(gl.ARRAY_BUFFER, Constants.MAX_VERTS_PER_CHUNK * Constants.RENDER_HEIGHT * 4, gl.DYNAMIC_DRAW);
+
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribIPointer(0, 1, gl.UNSIGNED_INT, 4, 0);
+
+        gl.bindVertexArray(null);
     }
 
     update() {
@@ -34,14 +72,28 @@ export class ChunkColumn {
     }
 
     renderSolid(shader) {
+        const gl = this.gl;
+        gl.bindVertexArray(this.solidVao);
+
+        shader.setMat4("uModel", this.model);
+
         for (const chunk of this.chunks) {
-            if(chunk)   chunk.renderSolid(shader);
+            if (!chunk || chunk.solidCount == 0) continue;
+
+            gl.drawArrays(gl.TRIANGLES, chunk.solidOffset, chunk.solidCount);
         }
     }
 
-    renderWater(shader) {
+    renderWater(shader, playerPos) {
+        const gl = this.gl;
+        gl.bindVertexArray(this.waterVao);
+
+        shader.setMat4("uModel", this.model);
+
         for (const chunk of this.chunks) {
-            if(chunk)   chunk.renderWater(shader);
+            if (!chunk || chunk.waterCount == 0) continue;
+
+            gl.drawArrays(gl.TRIANGLES, chunk.waterOffset, chunk.waterCount);
         }
     }
 

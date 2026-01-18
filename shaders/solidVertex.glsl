@@ -18,8 +18,9 @@ void main() {
     uint z = (aVertex >> 10) & 31u;
     uint normalIndex = (aVertex >> 15) & 7u;
     uint blockType = (aVertex >> 18) & 15u;
+    uint cy = (aVertex >> 22) & 31u;
 
-    gl_Position = uProjection * uView * uModel * vec4(x, y, z, 1.0);
+    gl_Position = uProjection * uView * uModel * vec4(x, y + cy * 16u, z, 1.0);
     NormalIndex = normalIndex;
     BlockType = blockType;
     LocalPos = vec3(x, y, z);

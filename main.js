@@ -7,7 +7,7 @@ canvas.height = window.innerHeight;
 
 const gl = canvas.getContext("webgl2");
 if (!gl) {
-    console.error("WebGL2 not supported.");
+    console.warn("WebGL2 not supported.");
 }
 
 const camera = new Camera();
@@ -37,7 +37,7 @@ function render(time) {
     gl.clearColor(0.5, 0.65, 0.8, 0.8);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    world.render(camera);
+    world.render(camera, camera.position);
 
     requestAnimationFrame(render);
 }

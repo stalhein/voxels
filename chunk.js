@@ -81,77 +81,45 @@ export class Chunk {
         this.cy = y;
         this.cz = z;
 
-        this.model = mat4.create();
+        this.neighbours = null;
 
         this.blocks = new Int8Array(CHUNK_VOLUME);
 
-        this.blockVbo = null;
-        this.blockVao = null;
-
-        this.blockVertices = [];
-
-        this.waterVbo = null;
-        this.waterVao = null;
-
+        this.solidVertices = [];
         this.waterVertices = [];
 
-        this.dirty = false;
+        this.solidOffset = 0;
+        this.solidCount = 0;
+        this.waterOffset = 0;
+        this.waterCount = 0;
 
-        this.neighbours = null;
+        this.dirty = false;
     }
 
     init() {
-        mat4.translate(this.model, this.model, vec3.fromValues(this.cx*CHUNK_SIZE, this.cy*CHUNK_SIZE, this.cz*CHUNK_SIZE));
     }
 
     uploadMesh() {
         const gl = this.gl;
+        const column = this.column;
 
-        // Block
-        this.blockVao = gl.createVertexArray();
-        this.blockVbo = gl.createBuffer();
+        if (this.solidVertices.length > 0) {
+            this.solidOffset = this.cy * Constants.MAX_VERTS_PER_CHUNK;
 
-        gl.bindVertexArray(this.blockVao);
+            this.solidCount = this.solidVertices.length;
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.blockVbo);
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            new Uint32Array(this.blockVertices),
-            gl.STATIC_DRAW
-        );
+            gl.bindBuffer(gl.ARRAY_BUFFER, column.solidVbo);
+            gl.bufferSubData(gl.ARRAY_BUFFER, this.solidOffset * 4, new Uint32Array(this.solidVertices));
+        }
 
-        gl.enableVertexAttribArray(0);
-        gl.vertexAttribIPointer(
-            0,
-            1,
-            gl.UNSIGNED_INT,
-            4,
-            0
-        );
+        if (this.waterVertices.length > 0) {
+            this.waterOffset = this.cy * Constants.MAX_VERTS_PER_CHUNK;
 
-        // Water
-        this.waterVao = gl.createVertexArray();
-        this.waterVbo = gl.createBuffer();
+            this.waterCount = this.waterVertices.length;
 
-        gl.bindVertexArray(this.waterVao);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.waterVbo);
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            new Uint32Array(this.waterVertices),
-            gl.STATIC_DRAW
-        );
-
-        gl.enableVertexAttribArray(0);
-        gl.vertexAttribIPointer(
-            0,
-            1,
-            gl.UNSIGNED_INT,
-            4,
-            0
-        );
-
-        gl.bindVertexArray(null);
+            gl.bindBuffer(gl.ARRAY_BUFFER, column.waterVbo);
+            gl.bufferSubData(gl.ARRAY_BUFFER, this.waterOffset * 4, new Uint32Array(this.waterVertices));
+        }
     }
 
     // Terrain stuff
@@ -207,7 +175,7 @@ export class Chunk {
             }
         }
 
-        this.blockVertices.length = 0;
+        this.solidVertices.length = 0;
         this.waterVertices.length = 0;
         // Greedy
         if (GREEDY) {
@@ -253,7 +221,7 @@ export class Chunk {
                             continue;
                         }
 
-                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.solidVertices;
 
                         // Expand width
                         let w = 1;
@@ -269,7 +237,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(0, -1, 0, d, u, v, w, h, blockType, vertices);
+                        this.addQuad(0, -1, 0, d, u, v, w, h, blockType, vertices, this.cy);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -313,7 +281,7 @@ export class Chunk {
                             continue;
                         }
 
-                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.solidVertices;
 
                         // Expand width
                         let w = 1;
@@ -329,7 +297,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(0, 1, 1, d, u, v, w, h, blockType, vertices);
+                        this.addQuad(0, 1, 1, d, u, v, w, h, blockType, vertices, this.cy);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -373,7 +341,7 @@ export class Chunk {
                             continue;
                         }
 
-                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.solidVertices;
 
                         // Expand width
                         let w = 1;
@@ -389,7 +357,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(1, -1, 2, d, u, v, w, h, blockType, vertices);
+                        this.addQuad(1, -1, 2, d, u, v, w, h, blockType, vertices, this.cy);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -433,7 +401,7 @@ export class Chunk {
                             continue;
                         }
 
-                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.solidVertices;
 
                         // Expand width
                         let w = 1;
@@ -449,7 +417,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(1, 1, 3, d, u, v, w, h, blockType, vertices);
+                        this.addQuad(1, 1, 3, d, u, v, w, h, blockType, vertices, this.cy);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -493,7 +461,7 @@ export class Chunk {
                             continue;
                         }
 
-                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.solidVertices;
 
                         // Expand width
                         let w = 1;
@@ -509,7 +477,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(2, -1, 4, d, u, v, w, h, blockType, vertices);
+                        this.addQuad(2, -1, 4, d, u, v, w, h, blockType, vertices, this.cy);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -553,7 +521,7 @@ export class Chunk {
                             continue;
                         }
 
-                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.solidVertices;
 
                         // Expand width
                         let w = 1;
@@ -569,7 +537,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(2, 1, 5, d, u, v, w, h, blockType, vertices);
+                        this.addQuad(2, 1, 5, d, u, v, w, h, blockType, vertices, this.cy);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -604,13 +572,14 @@ export class Chunk {
         this.dirty = false;
     }
 
-    packVertex(x, y, z, normalIndex, blockType) {
+    packVertex(x, y, z, normalIndex, blockType, cy) {
         return (
             (x & 31) |
             ((y & 31) << 5) |
             ((z & 31) << 10) |
             ((normalIndex & 7) << 15) |
-            ((blockType & 15) << 18)
+            ((blockType & 15) << 18) |
+            ((cy & 31) << 22)
         ) >>> 0;
     }
 
@@ -639,10 +608,10 @@ export class Chunk {
             vy = w;
         }
 
-        const v0 = this.packVertex(x, y, z, normal, blockType);
-        const v1 = this.packVertex(x + ux, y + uy, z + uz, normal, blockType);
-        const v2 = this.packVertex(x + ux + vx, y + uy + vy, z + uz + vz, normal, blockType);
-        const v3 = this.packVertex(x + vx, y + vy, z + vz, normal, blockType);
+        const v0 = this.packVertex(x, y, z, normal, blockType, this.cy);
+        const v1 = this.packVertex(x + ux, y + uy, z + uz, normal, blockType, this.cy);
+        const v2 = this.packVertex(x + ux + vx, y + uy + vy, z + uz + vz, normal, blockType, this.cy);
+        const v3 = this.packVertex(x + vx, y + vy, z + vz, normal, blockType, this.cy);
 
         if (normal == 2 || normal == 3) vertices.push(v0, v2, v1, v0, v3, v2);
         else if (direction == -1) vertices.push(v0, v2, v1, v0, v3, v2);
@@ -655,7 +624,7 @@ export class Chunk {
             const lx = FACES[base+i*4+0] + x;
             const ly = FACES[base+i*4+1] + y;
             const lz = FACES[base+i*4+2] + z;
-            this.blockVertices.push(this.packVertex(lx, ly, lz, normalIndex, blockType));
+            this.solidVertices.push(this.packVertex(lx, ly, lz, normalIndex, blockType));
         }
     }
 
@@ -699,20 +668,5 @@ export class Chunk {
         if (z >= CHUNK_SIZE)    return neighbours[5] ? neighbours[5].getBlock(x, y, z-CHUNK_SIZE) : BlockType.STONE;
 
         return BlockType.AIR;
-    }
-
-
-    renderSolid(shader) {
-        const gl = this.gl;
-        shader.setMat4("uModel", this.model);
-        gl.bindVertexArray(this.blockVao);
-        gl.drawArrays(gl.TRIANGLES, 0, this.blockVertices.length);
-    }
-
-    renderWater(shader) {
-        const gl = this.gl;
-        shader.setMat4("uModel", this.model);
-        gl.bindVertexArray(this.waterVao);
-        gl.drawArrays(gl.TRIANGLES, 0, this.waterVertices.length);
     }
 }

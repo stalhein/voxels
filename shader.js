@@ -1,3 +1,5 @@
+import {mat4, vec3} from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
+
 export class Shader {
     constructor(gl, vertexPath, fragmentPath) {
         this.gl = gl;
@@ -62,6 +64,16 @@ export class Shader {
     setInt(name, value) {
         const uniform = this.getUniform(name);
         this.gl.uniform1i(uniform, value);
+    }
+
+    setFloat(name, value) {
+        const uniform = this.getUniform(name);
+        this.gl.uniform1f(uniform, value);
+    }
+
+    setVec3(name, value) {
+        const uniform = this.getUniform(name);
+        this.gl.uniform3fv(uniform, value);
     }
 
     getUniform(name) {

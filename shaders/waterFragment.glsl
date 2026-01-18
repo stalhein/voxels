@@ -6,7 +6,9 @@ out vec4 FragColor;
 flat in uint NormalIndex;
 flat in uint BlockType;
 in vec3 LocalPos;
+in vec3 WorldPos;
 
+uniform vec3 uCameraPos;
 uniform sampler2D uAtlas;
 
 vec3 normals[6] = vec3[6](
@@ -47,7 +49,7 @@ vec2 getTile() {
 void main() {
 
     // Lighting
-    const vec3 lightDir = normalize(vec3(-0.2, 0.8, -0.3));
+    const vec3 lightDir = normalize(vec3(-0.5, 0.5, -0.3));
     const vec3 lightColor = vec3(1.0);
     const float ambientStrength = 0.6;
 
@@ -70,9 +72,16 @@ void main() {
 
     vec4 objectColor = texture(uAtlas, localUV).rgba;
 
+    // Specular
+    vec3 viewDirection = normalize(uCameraPos - WorldPos);
+    vec3 reflectDirection = reflect(-lightDir, normal);
 
-    // Output color
+    float specular = pow(max(dot(viewDirection, reflectDirection), 0.0), 32.0);
+
     vec3 finalColor = (ambient + diffuse) * objectColor.rgb;
+
+    finalColor += vec3(1.0) * specular;
+
 
     FragColor = vec4(finalColor, objectColor.a);
 }
