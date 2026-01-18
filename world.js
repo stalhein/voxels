@@ -31,8 +31,12 @@ export class World {
         this.columns = new Map();
 
         this.currentBlock = null;
-        document.addEventListener("click", () => {
-            this.breakBlock();
+        document.addEventListener("mousedown", (event) => {
+            if (event.button == 0)   this.breakBlock();
+            if (event.button == 2)   this.placeBlock(BlockType.STONE);
+        });
+        document.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
         });
     }
 
@@ -88,7 +92,11 @@ export class World {
         this.shader.setMat4("uView", view);
 
         for (const column of this.columns) {
-            column[1].render(this.shader);
+            column[1].renderSolid(this.shader);
+        }
+
+        for (const column of this.columns) {
+            column[1].renderWater(this.shader);
         }
     }
 
@@ -221,5 +229,27 @@ export class World {
         if (!column)    return;
 
         return column.setBlock(cy, x, y, z, BlockType.AIR);
+    }
+
+    placeBlock(block) {
+        if (!this.currentBlock) return;
+
+        const wx = this.currentBlock.block[0] + this.currentBlock.normal[0];
+        const wy = this.currentBlock.block[1] + this.currentBlock.normal[1];
+        const wz = this.currentBlock.block[2] + this.currentBlock.normal[2];
+
+        const cx = Math.floor(wx/Constants.CHUNK_SIZE);
+        const cy = Math.floor(wy/Constants.CHUNK_SIZE);
+        const cz = Math.floor(wz/Constants.CHUNK_SIZE);
+
+        const x = wx - cx*Constants.CHUNK_SIZE;
+        const y = wy - cy*Constants.CHUNK_SIZE;
+        const z = wz - cz*Constants.CHUNK_SIZE;
+
+        const column = this.getColumn(cx, cz);
+
+        if (!column)    return;
+
+        return column.setBlock(cy, x, y, z, block);
     }
 }

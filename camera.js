@@ -2,11 +2,13 @@ import { mat4, vec3 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/ind
 
 export class Camera {
     constructor() {
-        this.position = vec3.fromValues(0, 10, 10);
+        this.position = vec3.fromValues(50, 85, 80);
+        this.velocity = vec3.fromValues(0, 0, 0);
+        this.acceleration = vec3.fromValues(0, 0, 0);
         this.forward = vec3.create();
         this.pitch = 0;
         this.yaw = Math.PI;
-        this.speed = 20;
+        this.speed = 100;
         this.sensitivity =  0.004;
 
         this.keys = {};
@@ -57,11 +59,16 @@ export class Camera {
             -Math.sin(this.yaw),
         );
 
-        if (this.keys["w"]) vec3.scaleAndAdd(this.position, this.position, forward, this.speed * dt);
-        if (this.keys["s"]) vec3.scaleAndAdd(this.position, this.position, forward, -this.speed * dt);
-        if (this.keys["a"]) vec3.scaleAndAdd(this.position, this.position, right, this.speed * dt);
-        if (this.keys["d"]) vec3.scaleAndAdd(this.position, this.position, right, -this.speed * dt);
-        if (this.keys[" "]) this.position[1] += this.speed * dt;
-        if (this.keys["shift"]) this.position[1] -= this.speed * dt;
+        vec3.set(this.acceleration, 0, 0, 0);
+        if (this.keys["w"]) vec3.scaleAndAdd(this.acceleration, this.acceleration, forward, this.speed);
+        if (this.keys["s"]) vec3.scaleAndAdd(this.acceleration, this.acceleration, forward, -this.speed);
+        if (this.keys["a"]) vec3.scaleAndAdd(this.acceleration, this.acceleration, right, this.speed);
+        if (this.keys["d"]) vec3.scaleAndAdd(this.acceleration, this.acceleration, right, -this.speed);
+        if (this.keys[" "]) this.acceleration[1] += this.speed;
+        if (this.keys["shift"]) this.acceleration[1] -= this.speed;
+
+        vec3.scaleAndAdd(this.velocity, this.velocity, this.acceleration, dt);
+        vec3.scale(this.velocity, this.velocity, 0.85);
+        vec3.scaleAndAdd(this.position, this.position, this.velocity, dt);
     }
 };

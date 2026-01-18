@@ -64,9 +64,10 @@ const FACES = [
 
 export const BlockType = {
     AIR: 0,
-    GRASS: 1,
-    DIRT: 2,
-    STONE: 3
+    WATER: 1,
+    GRASS: 2,
+    DIRT: 3,
+    STONE: 4
 };
 
 export class Chunk {
@@ -84,10 +85,15 @@ export class Chunk {
 
         this.blocks = new Int8Array(CHUNK_VOLUME);
 
-        this.vbo = null;
-        this.vao = null;
+        this.blockVbo = null;
+        this.blockVao = null;
 
-        this.vertices = [];
+        this.blockVertices = [];
+
+        this.waterVbo = null;
+        this.waterVao = null;
+
+        this.waterVertices = [];
 
         this.dirty = false;
 
@@ -101,15 +107,38 @@ export class Chunk {
     uploadMesh() {
         const gl = this.gl;
 
-        this.vao = gl.createVertexArray();
-        this.vbo = gl.createBuffer();
+        // Block
+        this.blockVao = gl.createVertexArray();
+        this.blockVbo = gl.createBuffer();
 
-        gl.bindVertexArray(this.vao);
+        gl.bindVertexArray(this.blockVao);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.blockVbo);
         gl.bufferData(
             gl.ARRAY_BUFFER,
-            new Uint32Array(this.vertices),
+            new Uint32Array(this.blockVertices),
+            gl.STATIC_DRAW
+        );
+
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribIPointer(
+            0,
+            1,
+            gl.UNSIGNED_INT,
+            4,
+            0
+        );
+
+        // Water
+        this.waterVao = gl.createVertexArray();
+        this.waterVbo = gl.createBuffer();
+
+        gl.bindVertexArray(this.waterVao);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.waterVbo);
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Uint32Array(this.waterVertices),
             gl.STATIC_DRAW
         );
 
@@ -136,11 +165,15 @@ export class Chunk {
                 if (localHeight >= CHUNK_SIZE)  localHeight = CHUNK_SIZE;
                 if (localHeight < 0)    localHeight = BlockType.AIR;
 
-                for (let y = 0; y < localHeight; ++y) {
+                for (let y = 0; y < CHUNK_SIZE; ++y) {
                     const realY = y + this.cy * CHUNK_SIZE;
 
-                    if (realY >= height-1)  this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
-                    else    this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
+                    if (y < localHeight) {
+                        if (realY >= height-1)  this.blocks[this.idx(x, y, z)] = BlockType.GRASS;
+                        else    this.blocks[this.idx(x, y, z)] = BlockType.DIRT;
+                    } else if (realY < CHUNK_SIZE * 2) {
+                        this.blocks[this.idx(x, y, z)] = BlockType.WATER;
+                    }
                 }
             }
         }
@@ -174,7 +207,8 @@ export class Chunk {
             }
         }
 
-        this.vertices.length = 0;
+        this.blockVertices.length = 0;
+        this.waterVertices.length = 0;
         // Greedy
         if (GREEDY) {
             const AXIS = [
@@ -186,8 +220,8 @@ export class Chunk {
                 {axis: 2, direction:  1, normal: 5},
             ];
 
-            // Axis == 0 direction == -1
             const mask = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+            // Axis == 0 direction == -1
             for (let d = 0; d < CHUNK_SIZE; ++d) {
                 // Fill mask
                 mask.fill(0);
@@ -200,7 +234,13 @@ export class Chunk {
                         const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
                         const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
-                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                        if (a != BlockType.AIR) {
+                            if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            } else if (a == BlockType.WATER && b == BlockType.AIR) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            }
+                        }
                     }
                 }
 
@@ -212,6 +252,8 @@ export class Chunk {
                             v++;
                             continue;
                         }
+
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
 
                         // Expand width
                         let w = 1;
@@ -227,7 +269,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(0, -1, 0, d, u, v, w, h, blockType);
+                        this.addQuad(0, -1, 0, d, u, v, w, h, blockType, vertices);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -252,7 +294,13 @@ export class Chunk {
                         const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
                         const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
-                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                        if (a != BlockType.AIR) {
+                            if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            } else if (a == BlockType.WATER && b == BlockType.AIR) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            }
+                        }
                     }
                 }
 
@@ -264,6 +312,8 @@ export class Chunk {
                             v++;
                             continue;
                         }
+
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
 
                         // Expand width
                         let w = 1;
@@ -279,7 +329,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(0, 1, 1, d, u, v, w, h, blockType);
+                        this.addQuad(0, 1, 1, d, u, v, w, h, blockType, vertices);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -304,7 +354,13 @@ export class Chunk {
                         const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
                         const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
-                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                        if (a != BlockType.AIR) {
+                            if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            } else if (a == BlockType.WATER && b == BlockType.AIR) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            }
+                        }
                     }
                 }
 
@@ -316,6 +372,8 @@ export class Chunk {
                             v++;
                             continue;
                         }
+
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
 
                         // Expand width
                         let w = 1;
@@ -331,7 +389,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(1, -1, 2, d, u, v, w, h, blockType);
+                        this.addQuad(1, -1, 2, d, u, v, w, h, blockType, vertices);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -356,7 +414,13 @@ export class Chunk {
                         const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
                         const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
-                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                        if (a != BlockType.AIR) {
+                            if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            } else if (a == BlockType.WATER && b == BlockType.AIR) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            }
+                        }
                     }
                 }
 
@@ -368,6 +432,8 @@ export class Chunk {
                             v++;
                             continue;
                         }
+
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
 
                         // Expand width
                         let w = 1;
@@ -383,7 +449,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(1, 1, 3, d, u, v, w, h, blockType);
+                        this.addQuad(1, 1, 3, d, u, v, w, h, blockType, vertices);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -408,7 +474,13 @@ export class Chunk {
                         const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
                         const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
-                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                        if (a != BlockType.AIR) {
+                            if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            } else if (a == BlockType.WATER && b == BlockType.AIR) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            }
+                        }
                     }
                 }
 
@@ -420,6 +492,8 @@ export class Chunk {
                             v++;
                             continue;
                         }
+
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
 
                         // Expand width
                         let w = 1;
@@ -435,7 +509,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(2, -1, 4, d, u, v, w, h, blockType);
+                        this.addQuad(2, -1, 4, d, u, v, w, h, blockType, vertices);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -460,7 +534,13 @@ export class Chunk {
                         const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
                         const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
-                        if (a !== BlockType.AIR && b === BlockType.AIR) mask[u * CHUNK_SIZE + v] = a;
+                        if (a != BlockType.AIR) {
+                            if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            } else if (a == BlockType.WATER && b == BlockType.AIR) {
+                                mask[u * CHUNK_SIZE + v] = a;
+                            }
+                        }
                     }
                 }
 
@@ -472,6 +552,8 @@ export class Chunk {
                             v++;
                             continue;
                         }
+
+                        const vertices = blockType == BlockType.WATER ? this.waterVertices : this.blockVertices;
 
                         // Expand width
                         let w = 1;
@@ -487,7 +569,7 @@ export class Chunk {
                             h++;
                         }
                         
-                        this.addQuad(2, 1, 5, d, u, v, w, h, blockType);
+                        this.addQuad(2, 1, 5, d, u, v, w, h, blockType, vertices);
 
                         for (let du = 0; du < h; ++du) {
                             for (let dv = 0; dv < w; ++dv) {
@@ -532,7 +614,7 @@ export class Chunk {
         ) >>> 0;
     }
 
-    addQuad(axis, direction, normal, d, u, v, w, h, blockType) {
+    addQuad(axis, direction, normal, d, u, v, w, h, blockType, vertices) {
         let x = 0, y = 0, z = 0;
         let ux = 0, uy = 0, uz = 0;
         let vx = 0, vy = 0, vz = 0;
@@ -562,8 +644,9 @@ export class Chunk {
         const v2 = this.packVertex(x + ux + vx, y + uy + vy, z + uz + vz, normal, blockType);
         const v3 = this.packVertex(x + vx, y + vy, z + vz, normal, blockType);
 
-        if (direction == 1)    this.vertices.push(v0, v1, v2, v0, v2, v3);
-        else    this.vertices.push(v0, v2, v1, v0, v3, v2);
+        if (normal == 2 || normal == 3) vertices.push(v0, v2, v1, v0, v3, v2);
+        else if (direction == -1) vertices.push(v0, v2, v1, v0, v3, v2);
+        else if (direction == 1) vertices.push(v0, v1, v2, v0, v2, v3);
     }
     
     addFace(x, y, z, normalIndex, blockType) {
@@ -572,7 +655,7 @@ export class Chunk {
             const lx = FACES[base+i*4+0] + x;
             const ly = FACES[base+i*4+1] + y;
             const lz = FACES[base+i*4+2] + z;
-            this.vertices.push(this.packVertex(lx, ly, lz, normalIndex, blockType));
+            this.blockVertices.push(this.packVertex(lx, ly, lz, normalIndex, blockType));
         }
     }
 
@@ -619,10 +702,17 @@ export class Chunk {
     }
 
 
-    render(shader) {
+    renderSolid(shader) {
         const gl = this.gl;
         shader.setMat4("uModel", this.model);
-        gl.bindVertexArray(this.vao);
-        gl.drawArrays(gl.TRIANGLES, 0, this.vertices.length);
+        gl.bindVertexArray(this.blockVao);
+        gl.drawArrays(gl.TRIANGLES, 0, this.blockVertices.length);
+    }
+
+    renderWater(shader) {
+        const gl = this.gl;
+        shader.setMat4("uModel", this.model);
+        gl.bindVertexArray(this.waterVao);
+        gl.drawArrays(gl.TRIANGLES, 0, this.waterVertices.length);
     }
 }

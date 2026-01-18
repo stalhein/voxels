@@ -68,11 +68,11 @@ void main() {
 
     vec2 localUV = normalizedTile + UV * TILE_SIZE;
 
-    vec3 objectColor = texture(uAtlas, localUV).rgb;
+    vec4 objectColor = texture(uAtlas, localUV).rgba;
 
 
     // Output color
-    vec3 finalColor = (ambient + diffuse) * objectColor;
+    vec3 finalColor = (ambient + diffuse) * objectColor.rgb;
 
-    FragColor = vec4(finalColor, 1.0);
+    FragColor = vec4(finalColor, objectColor.a);
 }

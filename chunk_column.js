@@ -33,9 +33,15 @@ export class ChunkColumn {
         }
     }
 
-    render(shader) {
+    renderSolid(shader) {
         for (const chunk of this.chunks) {
-            if(chunk)   chunk.render(shader);
+            if(chunk)   chunk.renderSolid(shader);
+        }
+    }
+
+    renderWater(shader) {
+        for (const chunk of this.chunks) {
+            if(chunk)   chunk.renderWater(shader);
         }
     }
 
