@@ -9,6 +9,14 @@
             margin: 0;
             height: 100%;
         }
+
+        div {
+            text-align: center;
+            margin: auto 10vw;
+            display: flex;
+            flex-direction: column;
+        }
+
         canvas {
             display: block;
             width: 100%;
@@ -17,6 +25,12 @@
     </style>
 </head>
 <body>
+    <div>
+        <p>Enter render distance, 64 is max, but I found 32 was a stretch, 8-24 works the best.</p>
+        <input type="range" value="16" min="4" max="32" id="renderSelector">
+        <p id="value">16</p>
+        <button id="go">Start</button>
+    </div>
     <canvas width="800" height="600"></canvas>
 
     <script type="module" src="main.js"></script>

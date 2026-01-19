@@ -61,9 +61,9 @@ export class World {
         this.terrainNoise.SetFractalOctaves(4);
 
         const lastTime = performance.now();
-        for (let x = 0; x < Constants.RENDER_WIDTH; ++x) {
-            for (let z = 0; z < Constants.RENDER_DEPTH; ++z) {
-                this.addColumn(x, z);
+        for (let x = -Constants.RENDER_RADIUS; x < Constants.RENDER_RADIUS; ++x) {
+            for (let z = -Constants.RENDER_RADIUS; z < Constants.RENDER_RADIUS; ++z) {
+                if (x * x + z * z <= Constants.RENDER_RADIUS * Constants.RENDER_RADIUS)   this.addColumn(x, z);
             }
         }
         console.log(performance.now() - lastTime);
@@ -95,6 +95,7 @@ export class World {
         this.solidShader.setInt("uAtlas", 0);
         this.solidShader.setMat4("uProjection", this.projection);
         this.solidShader.setMat4("uView", view);
+        this.solidShader.setVec3("uCameraPos", playerPos);
 
         for (const column of this.columns) {
             column[1].renderSolid(this.solidShader);

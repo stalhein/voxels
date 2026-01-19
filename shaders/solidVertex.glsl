@@ -7,6 +7,7 @@ layout(location = 0) in uint aVertex;
 flat out uint NormalIndex;
 flat out uint BlockType;
 out vec3 LocalPos;
+out vec3 WorldPos;
 
 uniform mat4 uView;
 uniform mat4 uProjection;
@@ -24,4 +25,5 @@ void main() {
     NormalIndex = normalIndex;
     BlockType = blockType;
     LocalPos = vec3(x, y, z);
+    WorldPos = vec4(uModel * vec4(x, float(y + cy * 16u), z, 1.0)).xyz;
 }

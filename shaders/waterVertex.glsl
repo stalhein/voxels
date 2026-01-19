@@ -22,7 +22,7 @@ void main() {
     uint blockType = (aVertex >> 18) & 15u;
     uint cy = (aVertex >> 22) & 31u;
 
-    float finalY = float(y + cy * 16u);
+    float finalY = float(y + cy * 16u) - 0.2;
 
     gl_Position = uProjection * uView * uModel * vec4(x, finalY, z, 1.0);
     NormalIndex = normalIndex;

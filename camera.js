@@ -2,7 +2,7 @@ import { mat4, vec3 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/ind
 
 export class Camera {
     constructor() {
-        this.position = vec3.fromValues(50, 85, 80);
+        this.position = vec3.fromValues(0, 85, 0);
         this.velocity = vec3.fromValues(0, 0, 0);
         this.acceleration = vec3.fromValues(0, 0, 0);
         this.forward = vec3.create();
@@ -24,10 +24,6 @@ export class Camera {
 
                 this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
             }
-        });
-
-        document.addEventListener("click", () => {
-            document.body.requestPointerLock();
         });
     }
 
