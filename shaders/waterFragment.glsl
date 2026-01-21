@@ -17,8 +17,7 @@ const vec3 lightDir = normalize(vec3(-0.5, 0.5, -0.7));
 const vec3 lightColor = vec3(1.0, 1.0, 0.9);
 const float ambientStrength = 0.12;
 
-const vec3 fogColorRGB = vec3(0.7, 0.8, 1.0);
-const vec3 fogColor = pow(fogColorRGB, vec3(2.2));
+const vec3 fogColor = vec3(0.7, 0.8, 1.0);
 const float fogDensity = 0.05;
 
 vec3 normals[6] = vec3[6](
@@ -85,7 +84,7 @@ void main() {
     float specular = pow(max(dot(viewDirection, reflectDirection), 0.0), 32.0);
 
     // Fog
-    float distance = length(WorldPos.xz - uCameraPos.xz) * 0.003;
+    float distance = length(WorldPos.xz - uCameraPos.xz) * 0.005;
 
     float fogFactor = 1.0 - exp(-distance * distance);    
     fogFactor = clamp(fogFactor, 0.0, 1.0);
@@ -93,12 +92,12 @@ void main() {
     float fogHeightFactor = clamp((WorldPos.y - uCameraPos.y) * 0.004 + 0.9, 0.0, 1.0);
     fogFactor *= fogHeightFactor;
 
-    vec3 finalColor = (ambient + diffuse) * objectColor.rgb * specular;
+    vec3 finalColor = (ambient + diffuse) * objectColor.rgb + specular;
 
     finalColor = mix(finalColor, fogColor, fogFactor);
 
     // Gamma correction
     finalColor = pow(finalColor, vec3(1.0 / 2.2));
 
-    FragColor = vec4(finalColor, 0.5);
+    FragColor = vec4(finalColor, objectColor.a);
 }

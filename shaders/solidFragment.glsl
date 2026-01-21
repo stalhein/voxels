@@ -16,8 +16,7 @@ const vec3 lightDir = normalize(vec3(-0.5, 0.5, -0.7));
 const vec3 lightColor = vec3(1.0, 1.0, 0.9);
 const float ambientStrength = 0.12;
 
-const vec3 fogColorRGB = vec3(0.7, 0.8, 1.0);
-const vec3 fogColor = pow(fogColorRGB, vec3(2.2));
+const vec3 fogColor = vec3(0.7, 0.8, 1.0);
 const float fogDensity = 0.05;
 
 vec3 normals[6] = vec3[6](
@@ -95,7 +94,7 @@ void main() {
     vec3 ambient = ambientStrength * lightColor;
 
     // Fog
-    float distance = length(WorldPos.xz - uCameraPos.xz) * 0.003;
+    float distance = length(WorldPos.xz - uCameraPos.xz) * 0.005;
 
     float fogFactor = 1.0 - exp(-distance * distance);    
     fogFactor = clamp(fogFactor, 0.0, 1.0);

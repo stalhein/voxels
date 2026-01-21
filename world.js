@@ -32,6 +32,8 @@ export class World {
 
         this.columns = new Map();
 
+        this.dirtyChunks = [];
+
         this.currentBlock = null;
         document.addEventListener("mousedown", (event) => {
             if (event.button == 0)   this.breakBlock();
@@ -79,8 +81,9 @@ export class World {
         );
 
         const lastTime = performance.now();
-        for (const column of this.columns) {
-            column[1].update();
+        while (this.dirtyChunks.length > 0) {
+            const chunk = this.dirtyChunks.pop();
+            chunk.reload();
         }
         if (performance.now() - lastTime > 1)   console.log(performance.now() - lastTime);
 

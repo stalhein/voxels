@@ -96,7 +96,10 @@ export class Chunk {
         this.dirty = false;
     }
 
-    init() {
+    reload() {
+        if (!this.dirty)    return;
+        this.generateMesh();
+        this.uploadMesh();
     }
 
     uploadMesh() {
@@ -147,6 +150,7 @@ export class Chunk {
         }
 
         this.dirty = true;
+        this.world.dirtyChunks.push(this);
     }
 
     // Meshing
@@ -648,6 +652,7 @@ export class Chunk {
         
         this.blocks[this.idx(x, y, z)] = block;
         this.dirty = true;
+        this.world.dirtyChunks.push(this);
 
         if (x == 0 && this.neighbours[0]) this.neighbours[0].dirty = true;
         if (y == 0 && this.neighbours[2]) this.neighbours[2].dirty = true;

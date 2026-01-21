@@ -138,7 +138,6 @@ export class ChunkColumn {
     addChunkAt(y) {
         const chunk = new Chunk(this.gl, this.world, this, this.cx, y, this.cz);
         this.chunks[y] = chunk;
-        chunk.init();
         chunk.generateTerrain();
     }
 
