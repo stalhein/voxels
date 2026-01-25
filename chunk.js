@@ -4,6 +4,8 @@ import {Constants} from "./constants.js";
 const CHUNK_SIZE = 16;
 const CHUNK_VOLUME = CHUNK_SIZE ** 3;
 
+const PADDED_SIZE = CHUNK_SIZE + 2;
+
 const GREEDY = true;
 
 const FACES = [
@@ -84,6 +86,7 @@ export class Chunk {
         this.neighbours = null;
 
         this.blocks = new Int8Array(CHUNK_VOLUME);
+        this.padded = new Uint8Array(PADDED_SIZE * PADDED_SIZE * PADDED_SIZE);
 
         this.solidVertices = [];
         this.waterVertices = [];
@@ -168,13 +171,11 @@ export class Chunk {
         this.neighbours = neighbours;
 
         // Create padded blocks array
-        const PADDED_SIZE = CHUNK_SIZE + 2;
-        const padded = new Uint8Array(PADDED_SIZE * PADDED_SIZE * PADDED_SIZE);
         const paddedIdx = (x, y, z) => (z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1;
         for (let z = -1; z < PADDED_SIZE-1; ++z) {
             for (let y = -1; y < PADDED_SIZE-1; ++y) {
                 for (let x = -1; x < PADDED_SIZE-1; ++x) {
-                    padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1] = (this.getBlockNeighbours(neighbours, x, y, z));
+                    this.padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1] = (this.getBlockNeighbours(neighbours, x, y, z));
                 }
             }
         }
@@ -203,8 +204,8 @@ export class Chunk {
                         let x = d, y = u, z = v;
                         let nx = d-1, ny = u, nz = v;
 
-                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
-                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+                        const a = this.padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = this.padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
                         if (a != BlockType.AIR) {
                             if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
@@ -263,8 +264,8 @@ export class Chunk {
                         let x = d, y = u, z = v;
                         let nx = d+1, ny = u, nz = v;
 
-                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
-                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+                        const a = this.padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = this.padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
                         if (a != BlockType.AIR) {
                             if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
@@ -323,8 +324,8 @@ export class Chunk {
                         let x = u, y = d, z = v;
                         let nx = u, ny = d-1, nz = v;
 
-                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
-                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+                        const a = this.padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = this.padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
                         if (a != BlockType.AIR) {
                             if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
@@ -383,8 +384,8 @@ export class Chunk {
                         let x = u, y = d, z = v;
                         let nx = u, ny = d+1, nz = v;
 
-                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
-                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+                        const a = this.padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = this.padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
                         if (a != BlockType.AIR) {
                             if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
@@ -443,8 +444,8 @@ export class Chunk {
                         let x = u, y = v, z = d;
                         let nx = u, ny = v, nz = d-1;
 
-                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
-                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+                        const a = this.padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = this.padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
                         if (a != BlockType.AIR) {
                             if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
@@ -503,8 +504,8 @@ export class Chunk {
                         let x = u, y = v, z = d;
                         let nx = u, ny = v, nz = d+1;
 
-                        const a = padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
-                        const b = padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
+                        const a = this.padded[(z+1)*PADDED_SIZE*PADDED_SIZE + (y+1)*PADDED_SIZE + x+1];
+                        const b = this.padded[(nz+1)*PADDED_SIZE*PADDED_SIZE + (ny+1)*PADDED_SIZE + nx+1];
 
                         if (a != BlockType.AIR) {
                             if (a != BlockType.WATER && (b == BlockType.WATER || b == BlockType.AIR)) {
@@ -654,12 +655,33 @@ export class Chunk {
         this.dirty = true;
         this.world.dirtyChunks.push(this);
 
-        if (x == 0 && this.neighbours[0]) this.neighbours[0].dirty = true;
-        if (y == 0 && this.neighbours[2]) this.neighbours[2].dirty = true;
-        if (z == 0 && this.neighbours[4]) this.neighbours[4].dirty = true;
-        if (x == CHUNK_SIZE-1 && this.neighbours[1]) this.neighbours[1].dirty = true;
-        if (y == CHUNK_SIZE-1 && this.neighbours[3]) this.neighbours[3].dirty = true;
-        if (z == CHUNK_SIZE-1 && this.neighbours[5]) this.neighbours[5].dirty = true;
+        const neighbours = this.neighbours;
+        const world = this.world;
+
+        if (x == 0 && neighbours[0]) {
+            neighbours[0].dirty = true;
+            world.dirtyChunks.push(neighbours[0]);
+        }
+        if (y == 0 && neighbours[2]) {
+            neighbours[2].dirty = true;
+            world.dirtyChunks.push(neighbours[2]);
+        }
+        if (z == 0 && neighbours[4]) {
+            neighbours[4].dirty = true;
+            world.dirtyChunks.push(neighbours[4]);
+        }
+        if (x == CHUNK_SIZE-1 && neighbours[1]) {
+            neighbours[1].dirty = true;
+            world.dirtyChunks.push(this.neighbours[1]);
+        }
+        if (y == CHUNK_SIZE-1 && neighbours[3]) {
+            neighbours[3].dirty = true;
+            world.dirtyChunks.push(neighbours[3]);
+        }
+        if (z == CHUNK_SIZE-1 && neighbours[5]) {
+            neighbours[5].dirty = true;
+            world.dirtyChunks.push(neighbours[5]);
+        }
     }
 
     getBlockNeighbours(neighbours, x, y, z) {

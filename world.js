@@ -247,7 +247,7 @@ export class World {
         if (!column)    return;
 
         if (wy < Constants.CHUNK_SIZE * 2)   return column.setBlock(cy, x, y, z, BlockType.WATER);
-        return column.setBlock(cy, x, y, z, BlockType.AIR);
+        column.setBlock(cy, x, y, z, BlockType.AIR);
     }
 
     placeBlock(block) {
@@ -269,6 +269,6 @@ export class World {
 
         if (!column)    return;
 
-        return column.setBlock(cy, x, y, z, block);
+        column.setBlock(cy, x, y, z, block);
     }
 }

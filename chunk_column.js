@@ -155,6 +155,6 @@ export class ChunkColumn {
     setBlock(cy, x, y, z, block) {
         const chunk = this.getChunk(cy);
         if (!chunk) return;
-        return chunk.setBlock(x, y, z, block);
+        chunk.setBlock(x, y, z, block);
     }
 }
