@@ -35,9 +35,20 @@ export class World {
         this.dirtyChunks = [];
 
         this.currentBlock = null;
+        this.lastBreak = 0;
+        this.lastPlace = 0;
+        this.INTERVAL = 150;
+        this.mouse = {
+            left: false,
+            right: false,
+        };
         document.addEventListener("mousedown", (event) => {
-            if (event.button == 0)   this.breakBlock();
-            if (event.button == 2)   this.placeBlock(BlockType.STONE);
+            if (event.button == 0) this.mouse.left = true;
+            if (event.button == 2) this.mouse.right = true;
+        });
+        document.addEventListener("mouseup", (event) => {
+            if (event.button == 0) this.mouse.left = false;
+            if (event.button == 2) this.mouse.right = false;
         });
         document.addEventListener("contextmenu", (event) => {
             event.preventDefault();
@@ -88,6 +99,20 @@ export class World {
         if (performance.now() - lastTime > 1)   console.log(performance.now() - lastTime);
 
         this.currentBlock = this.raycast(playerPosition, playerDirection);
+
+        
+        const now = performance.now();
+        if (this.mouse.left && now - this.lastBreak >= this.INTERVAL) {
+            this.breakBlock();
+            this.lastBreak = now;
+        }
+        if (this.mouse.right && now - this.lastPlace >= this.INTERVAL) {
+            this.placeBlock(BlockType.STONE);
+            this.lastPlace = now;
+        }
+
+        if (!this.mouse.left) this.lastBreak = 0;
+        if (!this.mouse.right) this.lastPlace = 0;
     }
 
     render(camera, playerPos) {

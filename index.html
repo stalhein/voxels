@@ -7,7 +7,9 @@
     <style>
         html, body {
             margin: 0;
-            height: 100%;
+            height: 100vh;
+            max-height: 100vh;
+            overflow: hidden;
         }
 
         div {
@@ -22,6 +24,15 @@
             width: 100%;
             height: 100%;
         }
+
+        .crosshair {
+            width: 20px;
+            height: 20px;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            background-color: gray;
+        }
     </style>
 </head>
 <body>
@@ -30,6 +41,10 @@
         <input type="range" value="16" min="4" max="32" id="renderSelector">
         <p id="value">16</p>
         <button id="go">Start</button>
+        <p><b>Controls: </b><br>
+            W - forwards, S - backwards, A - left, D - right, LEFT SHIFT - down, SPACE - up.<br>
+            LEFT CLICK - break block, RIGHT CLICK - place stone<br>
+            Basically Minecraft controls.</p>
     </div>
     <canvas width="800" height="600"></canvas>
 
